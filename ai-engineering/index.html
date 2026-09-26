@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AI engineering: the build route</title>
+<meta name="description" content="Route 3: build a docs assistant with the Claude API, structured outputs, tools, RAG with pgvector, evals, MCP, agents and production practices.">
+<meta property="og:title" content="AI engineering: the build route">
+<meta property="og:description" content="Route 3: build a docs assistant with the Claude API, structured outputs, tools, RAG with pgvector, evals, MCP, agents and production practices.">
+<meta property="og:type" content="article">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -93,7 +98,7 @@ main{padding:56px clamp(20px,5vw,72px) 120px;min-width:0}
 .stop ul,.stop ol{padding-left:22px;margin:0 0 16px}
 .stop li{margin-bottom:6px}
 code{font-family:var(--mono);font-size:.86em}
-:not(pre)>code{background:var(--code-bg);border:1px solid var(--rule);border-radius:5px;padding:.08em .35em;white-space:nowrap}
+:not(pre)>code{background:var(--code-bg);border:1px solid var(--rule);border-radius:5px;padding:.08em .35em;overflow-wrap:anywhere}
 
 .code{position:relative;margin:16px 0 18px}
 pre{margin:0;background:var(--code-bg);border:1px solid var(--rule);border-left:4px solid var(--line);border-radius:4px 10px 10px 4px;padding:16px 18px;overflow-x:auto;font:400 13.5px/1.65 var(--mono);tab-size:4}
@@ -1143,7 +1148,12 @@ new_chunks = [c for c in chunks if content_hash(c.url, c.heading, c.text) not in
       if (e.isIntersecting) {
         if (current) current.classList.remove("is-current");
         current = railLinks.get(e.target.id);
-        if (current) current.classList.add("is-current");
+        if (current) {
+          current.classList.add("is-current");
+          const rail = document.getElementById("rail");
+          const r = current.getBoundingClientRect(), box = rail.getBoundingClientRect();
+          if (r.top < box.top + 80 || r.bottom > box.bottom - 24) rail.scrollTop += r.top - box.top - box.height / 3;
+        }
       }
     });
   }, { rootMargin: "-20% 0px -70% 0px" });
