@@ -1,0 +1,228 @@
+# CLAUDE.md
+
+Everything needed to understand, edit and publish this repository. Read it fully before changing anything; the rules here exist because each one was a real mistake at some point.
+
+## What this repo is
+
+Two hands-on learning guides plus a landing page, served as a static site on GitHub Pages. There is no build step, no framework and no package manager: every page is one self-contained HTML file.
+
+| Path | What it is | Progress key (localStorage) |
+|---|---|---|
+| `index.html` | Landing page: bento grid linking to both guides, shows progress | reads both keys below |
+| `python-fastapi/index.html` | Route 1: Python to FastAPI (capstone: URL shortener) | `pyfast:done:v1` |
+| `ai-engineering/index.html` | Route 2: AI engineering (capstone: docs assistant) | `aieng:done:v1` |
+| `README.md` | Public description of the repo | |
+| `.nojekyll` | Tells GitHub Pages to serve files as-is. Do not delete. | |
+| `publish.sh` | One-time script that created the repo and enabled Pages. Git-ignored. | |
+| `CLAUDE.md` | This file | |
+
+The learner's background: backend engineer (about 3 years, mostly .NET), comfortable with basic Python, moving into AI engineering. The goal of both guides is to let him build the capstone projects **himself, without code generators**.
+
+## How a guide page works
+
+Both guide files share the same CSS and JavaScript (route 2 was cloned from route 1). If you change shared styling or behaviour, change it in **both** files.
+
+### Content structure
+
+A guide is a list of **parts**, each containing **stops**. Everything in the navigation is generated from this markup:
+
+```html
+<section class="part" id="rag" data-title="Retrieval (RAG)" data-line="l3">
+  <div class="part-head">
+    <p class="part-num"></p>                 <!-- filled by JS: "Part N" -->
+    <h2>Retrieval (RAG)</h2>
+    <p class="goal">One sentence on what this part achieves.</p>
+  </div>
+
+  <article class="stop" id="rag-embed">
+    <h3>Embeddings with Voyage</h3>       <!-- becomes the rail label -->
+    <p>Short explanation.</p>
+    <div class="code"><pre><code class="language-python">...escaped code...</code></pre></div>
+    <div class="note"><p><strong>Watch out:</strong> one gotcha.</p></div>
+  </article>
+</section>
+```
+
+What the script at the bottom of each guide builds from that markup:
+
+- the left rail (a transit-map line per part, a station per stop, highlighting the stop in view);
+- the hero route map (one station per part with "x of y stops");
+- the mobile top bar (progress segments and a Contents drawer);
+- a "Mark done" button on every stop, saved to localStorage;
+- part numbering ("Part 1", "Part 2", ...), in document order;
+- a Copy button on every code block, and syntax highlighting via highlight.js.
+
+So: **never hand-write navigation, numbering or progress UI.** Add or move sections and articles; the rest follows.
+
+### Available building blocks inside a stop
+
+- Paragraphs: `<p>`.
+- Code: `<div class="code"><pre><code class="language-LANG">...</code></pre></div>`. Languages that work with the bundled highlight.js build: `python`, `bash`, `ini` (also for `.env` and `pyproject.toml` snippets), `yaml`, `json`, `sql`, `plaintext`.
+- Callout: `<div class="note"><p><strong>Label:</strong> text</p></div>`. The label takes the part's colour. Use for gotchas and "why" explanations, at most one or two per stop.
+- Table: wrap in `<div class="tbl-wrap"><table>...</table></div>` so it scrolls on mobile.
+- Lists: `<ul>`/`<ol>` are fine inside stops when the content really is a list.
+
+### Colours
+
+Each part has a line colour set by `data-line="lN"`. Colour tokens are defined three times in each file's `<style>`: the light `:root` block, the `@media (prefers-color-scheme: dark)` block, and the `:root[data-theme="dark"]` block. Each token also needs a selector rule like `[data-line="l6"]{--line:var(--l6)}`.
+
+| Token | Light | Dark | Used by |
+|---|---|---|---|
+| l0 | #B63C7C | #E36FAB | Route 1: Prerequisites |
+| l1 | #2F6BDB | #5B8FF0 | R1 Python for applications, R2 LLM API |
+| l2 | #C98A0C | #E8AE33 | R1 Toolkit, R2 Tools |
+| l3 | #05927F | #2EC2AA | R1 FastAPI, R2 RAG |
+| l4 | #D2413A | #F0665E | R1 Persistence, R2 Evals |
+| l5 | #7A4AD8 | #A17DF2 | R1 Capstone, R2 MCP |
+| l6 | #5F7A12 | #A6C24A | R2 Agents (defined in route 2 only) |
+| l7 | #237BA6 | #5DB6E0 | R2 Production (route 2 only) |
+| l8 | #B85A1B | #F08F4E | R2 Capstone (route 2 only) |
+
+To add a colour: add the token to all three blocks, add the `[data-line]` selector, and add it to the landing page's `:root` blocks and its `COLORS` map. Or skip all that and use `data-color="#hex"` on the section (it won't adapt to dark mode).
+
+### Progress and stop ids
+
+Saved progress is a list of stop **ids** under the guide's localStorage key. Therefore:
+
+- **Never rename or reuse a stop id** once published; users lose their "done" marks. Change the `<h3>` text freely instead.
+- Deleting a stop is fine; its id just becomes unused.
+- New ids must be unique within the guide. Use the part's prefix: `py-`, `b-`, `tk-`, `fa-`, `db-`, `cap-` (route 1); `llm-`, `so-`/`tl-`, `rag-`, `ev-`, `mcp-`, `ag-`, `pr-`, `cap-` (route 2).
+- Only bump a key (`v1` to `v2`) if you deliberately want to reset everyone's progress.
+
+## The landing page
+
+`index.html` is a bento grid: an intro tile, one large tile per guide (`a.guide`), and small `.note` tiles.
+
+Each guide tile has `data-src` (folder) and `data-key` (localStorage key). At runtime it fetches the guide, reads its parts and stops, and redraws the colour line with progress fill plus "N parts, M stops" and "x of y done". If the fetch fails (for example when opened from disk), the static fallback line in the markup stays. Keep that fallback roughly in sync (one `<span>` per part, correct colours) and the fallback "N parts" text.
+
+To add a third guide: create `new-guide/index.html` (copy an existing guide, see below), add another `a.guide` tile with its own `data-src` and `data-key`, and adjust grid spans (guides use `grid-column: span 3` of 6; for three guides use `span 2`).
+
+## Content rules
+
+These come from direct feedback. Follow them in every edit.
+
+1. **Concise, one idea and one working example per stop.** Explanations are a few sentences. No filler.
+2. **Don't frame content around DSA** or the learner's background. Write for any capable developer.
+3. **Cross-references by name, never by part number.** Write "see Responses and errors in the FastAPI part", not "Part 3". Numbers are generated and shift when parts are added.
+4. **Capstones contain no solution code.** They have a spec, milestones and hints only. Building blocks elsewhere are fine.
+5. **Raw first, framework second** (route 2). Teach the mechanism with the provider SDK or plain code, then show the framework version (LangChain, LangGraph, Qdrant) and the trade-off.
+6. **Consistency inside a guide.** One pattern per concern: for example, services own database transactions; the in-memory store is `dict[str, str]`; routes stay thin. Don't introduce a second pattern without replacing the first.
+7. **Accuracy over completeness.** Don't publish an API detail you haven't checked. Leave a value blank (like the zeroed price table) rather than guess.
+8. **Writing style:** sentence case headings, plain verbs, American spelling, no all-caps labels, no "→" on link text. Prefer prose; use lists only for real lists.
+
+## Verifying facts before you change them
+
+Route 2 depends on fast-moving libraries. Before editing anything version-sensitive, check the official source (links in each guide's footer) and update the "checked in <month year>" line in route 2's hero, the landing page footer and the README if you re-verify.
+
+State as of the last check (September 2026):
+
+| Topic | Fact the guide relies on | Where it appears |
+|---|---|---|
+| Anthropic Python SDK | v1.x; structured outputs use `output_config.format`; `messages.parse(..., output_format=PydanticModel)` still accepted by the Python helper | R2: LLM API, Tools, RAG answer, Evals judge |
+| Anthropic features | Automatic prompt caching via top-level `cache_control`; strict tools need `additionalProperties: false`, max 20 strict tools; Citations can't combine with structured outputs; Batches API is 50% off | R2 |
+| Model ids | `claude-sonnet-5`, `claude-haiku-4-5-20251001` used as examples | R2 `.env`, price table, LangChain example |
+| Removed sampling params | Unconfirmed claim that SDK v1 dropped `temperature`/`top_p`/`top_k`; deliberately not mentioned | Nowhere, keep it that way until confirmed |
+| Voyage | `voyage-4`, 1024 dimensions by default; voyage-4 family models are mutually compatible; reranker `rerank-2.5` | R2 RAG |
+| pgvector | `pgvector.sqlalchemy.Vector`, HNSW with `vector_cosine_ops`, image `pgvector/pgvector:pg17` | R2 RAG |
+| MCP | Spec 2026-07-28 (stateless core); Python SDK v2 with `from mcp.server import MCPServer`; `mcp dev`, `mcp run --transport streamable-http`; `from mcp import Client` | R2 MCP |
+| LangChain / LangGraph | LangChain v1 `create_agent`, `init_chat_model("anthropic:...")`; LangGraph 1.x | R2 Agents |
+| Langfuse | Python SDK v4, `get_client()`, `start_as_current_observation` | R2 Production |
+| OpenTelemetry GenAI conventions | Still evolving; sources disagreed on stability | R2 Production note |
+
+Written from general knowledge and **not** re-checked against docs at the time (verify first if a learner reports a problem): Voyage `rerank()` call shape, the Qdrant client calls, LangChain's `langchain.tools` import and `.text` on messages, the LangGraph `interrupt`/`Command` pattern, SSE streaming details.
+
+Route 1 facts are stable (FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic, redis-py) but still verify anything you add.
+
+## How to make common changes
+
+### Edit text in a stop
+Edit the HTML directly. If you change a heading, the rail updates automatically.
+
+### Add a stop
+Copy an existing `<article class="stop">`, give it a new unique id with the part's prefix, write the `<h3>` and content, and place it where it belongs in the sequence.
+
+### Add a part
+Copy a whole `<section class="part">`, give it a unique `id`, `data-title` (short, shown in rail and hero) and a `data-line` colour. Place it in order; numbering updates. In route 2 there is a comment marking where new parts go. Update the landing page's fallback line and "N parts" text, and the README table if the scope changed.
+
+### Add or edit a code block
+Code inside `<pre><code>` must be HTML-escaped: `<` as `&lt;`, `>` as `&gt;`, `&` as `&amp;`. Quotes don't need escaping. The easiest safe way is to write the snippet in a scratch file and escape it:
+
+```bash
+python3 -c "import html,sys; print(html.escape(open(sys.argv[1]).read(), quote=False))" snippet.py
+```
+
+Don't double-escape: an already-escaped `&lt;` pasted through the escaper becomes `&amp;lt;` and shows literally.
+
+### Create a new guide
+1. Copy `ai-engineering/index.html` to `new-guide/index.html`.
+2. Change `<title>`, the rail link text (`.rail-home`), the hero `<h1>` and lede.
+3. Change `const KEY = "aieng:done:v1"` to a new unique key.
+4. Replace all `<section class="part">` blocks with the new content.
+5. Update footers so all guides link to each other and to `../`.
+6. Add a tile to the landing page and a row to the README table.
+
+### Change shared styling or behaviour
+Make the same change in both guide files. Keep the landing page visually consistent (same fonts, palette tokens and radii).
+
+## Checks before committing
+
+Run from the repo root:
+
+```bash
+# 1. Every page parses as HTML
+python3 -c "import html.parser; [html.parser.HTMLParser().feed(open(f).read()) for f in ['index.html','python-fastapi/index.html','ai-engineering/index.html']]; print('html ok')"
+
+# 2. Every Python snippet is valid syntax (top-level await allowed)
+python3 - <<'EOF'
+import ast, html, re
+for f in ["python-fastapi/index.html", "ai-engineering/index.html"]:
+    src = open(f).read()
+    for i, code in enumerate(re.findall(r'<code class="language-python">(.*?)</code>', src, re.S)):
+        try:
+            compile(html.unescape(code), f"{f}#{i}", "exec", flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+        except SyntaxError as e:
+            print(f, i, e)
+print("python snippets checked")
+EOF
+
+# 3. No duplicate stop ids within a guide
+for f in python-fastapi/index.html ai-engineering/index.html; do
+  grep -o '<article class="stop" id="[^"]*"' "$f" | sort | uniq -d
+done
+
+# 4. No leftover placeholders or artifact links
+grep -rn "REPO_URL\|REPO_PAGES_URL\|claude.ai/artifact" --include=*.html --include=*.md --exclude=CLAUDE.md . || echo "clean"
+
+# 5. Preview locally (the landing page's progress needs http, not file://)
+python3 -m http.server 8000   # then open http://localhost:8000
+```
+
+Then check by eye: light and dark mode, a narrow (phone-width) window, the rail and "Mark done" working on anything you added.
+
+External resources are limited on purpose: highlight.js from cdnjs and Google Fonts. Don't add others without a reason; the pages must keep working as plain files.
+
+## Publishing
+
+The first publish was done with `./publish.sh [repo-name]` (requires `gh auth login`). It filled in the `REPO_URL`/`REPO_PAGES_URL` placeholders, created the repo, pushed `main` and enabled GitHub Pages from the root of `main`.
+
+After that, publishing is just:
+
+```bash
+git add -A
+git commit -m "Describe the change"
+git push
+```
+
+GitHub Pages redeploys automatically within a few minutes. Check progress under the repo's Actions tab ("pages build and deployment"). If the site doesn't update, confirm Settings → Pages still says "Deploy from a branch: main, / (root)", and that `.nojekyll` still exists.
+
+If the repo is renamed, update the links in `index.html` (Source tile) and `README.md` (live site line); GitHub redirects the old repo URL but not the old Pages URL.
+
+## Working on this repo with Claude
+
+When asked to change content:
+
+- Read the relevant part of the guide first, and match its existing patterns and style.
+- Research version-sensitive facts against official docs before writing them; say what was checked and what wasn't.
+- Keep the content rules above, especially: no part numbers in prose, stable stop ids, no solution code in capstones.
+- Run the checks section before declaring the change done.
+- Update this file when you add a guide, a colour, a convention, or re-verify facts.
