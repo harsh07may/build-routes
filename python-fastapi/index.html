@@ -1,0 +1,1256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Python to FastAPI: the build route</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --paper:#F4F6F5; --surface:#FFFFFF; --ink:#17212F; --muted:#5A6576; --rule:#D8DEE4; --code-bg:#EEF2F5;
+  --l0:#B63C7C; --l1:#2F6BDB; --l2:#C98A0C; --l3:#05927F; --l4:#D2413A; --l5:#7A4AD8;
+  --k-kw:#A0269E; --k-str:#377A1F; --k-num:#AE5700; --k-com:#76818F; --k-fn:#2B5CC2; --k-bi:#0A7B80; --k-meta:#B02A20; --k-attr:#95560A;
+  --sans:"Schibsted Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --rail-w:288px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E141D; --surface:#141C28; --ink:#E3E8EF; --muted:#94A1B3; --rule:#253040; --code-bg:#111925;
+    --l0:#E36FAB; --l1:#5B8FF0; --l2:#E8AE33; --l3:#2EC2AA; --l4:#F0665E; --l5:#A17DF2;
+    --k-kw:#D494F4; --k-str:#9ED27E; --k-num:#F2AA6B; --k-com:#7E8B9D; --k-fn:#86ADFF; --k-bi:#61CFCA; --k-meta:#FF8D84; --k-attr:#EFC873;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E141D; --surface:#141C28; --ink:#E3E8EF; --muted:#94A1B3; --rule:#253040; --code-bg:#111925;
+  --l0:#E36FAB; --l1:#5B8FF0; --l2:#E8AE33; --l3:#2EC2AA; --l4:#F0665E; --l5:#A17DF2;
+  --k-kw:#D494F4; --k-str:#9ED27E; --k-num:#F2AA6B; --k-com:#7E8B9D; --k-fn:#86ADFF; --k-bi:#61CFCA; --k-meta:#FF8D84; --k-attr:#EFC873;
+}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 24px);scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.62 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--l1);outline-offset:2px;border-radius:4px}
+
+/* part line colors: add a data-line value here (or use data-color on the section) to add a part */
+[data-line="l0"]{--line:var(--l0)} [data-line="l1"]{--line:var(--l1)} [data-line="l2"]{--line:var(--l2)} [data-line="l3"]{--line:var(--l3)}
+[data-line="l4"]{--line:var(--l4)} [data-line="l5"]{--line:var(--l5)}
+
+.shell{display:grid;grid-template-columns:var(--rail-w) minmax(0,1fr)}
+
+/* ---------- rail ---------- */
+.rail{position:sticky;top:0;height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow-y:auto;border-right:1px solid var(--rule);background:var(--paper);padding:28px 20px 40px 24px}
+.rail-home{display:block;font-weight:800;font-size:18px;letter-spacing:-.01em;text-decoration:none;margin-bottom:4px}
+.rail-progress{color:var(--muted);font-size:14px;margin:0 0 22px}
+.lines,.stations{list-style:none;margin:0;padding:0}
+.line{margin-bottom:18px}
+.line-name{display:flex;gap:10px;align-items:center;font-weight:700;font-size:14.5px;text-decoration:none;line-height:1.3}
+.line-num{flex:none;width:24px;height:24px;border-radius:50%;background:var(--line);color:#fff;display:grid;place-items:center;font-size:12.5px;font-weight:800}
+.stations{margin:6px 0 0 11px;border-left:3px solid var(--line);padding:2px 0 2px 0}
+.stations a{position:relative;display:flex;align-items:center;gap:10px;padding:4px 0 4px 16px;font-size:14px;color:var(--muted);text-decoration:none;line-height:1.3}
+.stations a:hover{color:var(--ink)}
+.stations .dot{position:absolute;left:-8.5px;width:14px;height:14px;border-radius:50%;background:var(--paper);border:3px solid var(--line)}
+.stations a.is-done .dot{background:var(--line)}
+.stations a.is-current{color:var(--ink);font-weight:700}
+.stations a.is-current .dot{transform:scale(1.25)}
+
+/* ---------- main ---------- */
+main{padding:56px clamp(20px,5vw,72px) 120px;min-width:0}
+.col{max-width:780px}
+.hero h1{font-size:clamp(40px,6.2vw,72px);line-height:1.02;letter-spacing:-.035em;font-weight:800;margin:0 0 18px}
+.hero .lede{font-size:19px;color:var(--muted);max-width:60ch;margin:0 0 36px}
+
+.route{list-style:none;margin:0 0 72px;padding:0;display:flex}
+.route li{flex:1;position:relative;padding-top:4px;min-width:0}
+.route li::before{content:"";position:absolute;top:19px;left:0;right:0;height:6px;background:var(--line)}
+.route li:first-child::before{left:18px}
+.route li:last-child::before{right:auto;width:18px}
+.route a{position:relative;display:block;text-decoration:none;padding-right:12px}
+.route .stn{width:38px;height:38px;border-radius:50%;background:var(--surface);border:5px solid var(--line);display:grid;place-items:center;font-weight:800;font-size:15px;margin-bottom:10px}
+.route .stn.full{background:var(--line);color:#fff}
+.route .r-title{font-weight:700;font-size:15px;line-height:1.25;display:block}
+.route .r-count{font-size:13.5px;color:var(--muted)}
+
+.part{margin-top:88px}
+.part-head{border-top:6px solid var(--line);padding-top:18px;margin-bottom:8px}
+.part-num{margin:0;font-weight:700;color:var(--line);font-size:15px}
+.part-head h2{font-size:clamp(30px,4vw,42px);line-height:1.08;letter-spacing:-.025em;margin:4px 0 10px;font-weight:800}
+.part-head .goal{color:var(--muted);margin:0;max-width:62ch}
+
+.stop{margin-top:52px}
+.stop h3{position:relative;font-size:23px;letter-spacing:-.015em;line-height:1.2;margin:0 0 10px;padding-left:26px}
+.stop h3::before{content:"";position:absolute;left:0;top:.28em;width:15px;height:15px;border-radius:50%;border:3px solid var(--line);background:var(--paper)}
+.stop.is-done h3::before{background:var(--line)}
+.stop p,.stop li{max-width:68ch}
+.stop p{margin:0 0 14px}
+.stop ul,.stop ol{padding-left:22px;margin:0 0 16px}
+.stop li{margin-bottom:6px}
+code{font-family:var(--mono);font-size:.86em}
+:not(pre)>code{background:var(--code-bg);border:1px solid var(--rule);border-radius:5px;padding:.08em .35em;white-space:nowrap}
+
+.code{position:relative;margin:16px 0 18px}
+pre{margin:0;background:var(--code-bg);border:1px solid var(--rule);border-left:4px solid var(--line);border-radius:4px 10px 10px 4px;padding:16px 18px;overflow-x:auto;font:400 13.5px/1.65 var(--mono);tab-size:4}
+pre code{font-size:inherit;white-space:pre}
+.copy{position:absolute;top:8px;right:8px;font:600 12.5px var(--sans);background:var(--surface);color:var(--muted);border:1px solid var(--rule);border-radius:6px;padding:4px 9px;cursor:pointer;opacity:0;transition:opacity .15s}
+.code:hover .copy,.copy:focus-visible{opacity:1}
+@media (hover:none){.copy{opacity:1}}
+
+.hljs-keyword,.hljs-selector-tag{color:var(--k-kw)}
+.hljs-string,.hljs-regexp{color:var(--k-str)}
+.hljs-number,.hljs-literal{color:var(--k-num)}
+.hljs-comment{color:var(--k-com);font-style:italic}
+.hljs-title,.hljs-title.function_,.hljs-section{color:var(--k-fn)}
+.hljs-built_in,.hljs-type,.hljs-title.class_{color:var(--k-bi)}
+.hljs-meta{color:var(--k-meta)}
+.hljs-attr,.hljs-variable,.hljs-params{color:var(--k-attr)}
+.hljs-subst{color:var(--ink)}
+
+.note{margin:16px 0;padding:12px 16px;background:var(--surface);border:1px solid var(--rule);border-radius:10px;font-size:15.5px;max-width:68ch}
+.note p:last-child{margin-bottom:0}
+.note strong{color:var(--line)}
+
+.tbl-wrap{overflow-x:auto;margin:14px 0 18px;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-weight:700;background:var(--code-bg)}
+tr:last-child td{border-bottom:0}
+td code{white-space:nowrap}
+
+.done-btn{display:inline-flex;align-items:center;gap:8px;margin-top:6px;font:600 14px var(--sans);color:var(--muted);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:6px 14px 6px 10px;cursor:pointer}
+.done-btn::before{content:"";width:12px;height:12px;border-radius:50%;border:2.5px solid var(--line)}
+.done-btn:hover{color:var(--ink);border-color:var(--line)}
+.done-btn[aria-pressed="true"]{color:var(--ink);border-color:var(--line)}
+.done-btn[aria-pressed="true"]::before{background:var(--line)}
+
+footer{margin-top:110px;padding-top:22px;border-top:1px solid var(--rule);color:var(--muted);font-size:15px}
+footer a{color:var(--ink)}
+
+/* ---------- mobile ---------- */
+.topbar{display:none}
+@media (max-width: 900px){
+  .shell{display:block}
+  .topbar{display:flex;position:sticky;top:0;z-index:20;align-items:center;gap:14px;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top,0px));margin-top:calc(-1 * env(safe-area-inset-top,0px));background:var(--paper);border-bottom:1px solid var(--rule)}
+  .topbar button{font:700 14.5px var(--sans);color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:999px;padding:6px 14px;cursor:pointer}
+  .topbar .bar{flex:1;display:flex;gap:4px}
+  .topbar .seg{flex:1;height:6px;border-radius:3px;background:var(--rule);overflow:hidden}
+  .topbar .seg i{display:block;height:100%;background:var(--line);width:0}
+  .topbar .count{font-size:13.5px;color:var(--muted);white-space:nowrap}
+  .rail{position:fixed;inset:0;top:0;height:100%;z-index:30;padding-top:calc(24px + env(safe-area-inset-top,0px));transform:translateX(-100%);transition:transform .2s ease;width:min(88vw,340px);box-shadow:0 0 0 100vmax transparent}
+  body.rail-open .rail{transform:none;box-shadow:0 0 0 100vmax rgba(8,12,18,.45)}
+  main{padding-top:32px}
+  .route{flex-direction:column;gap:0}
+  .route li{padding:0 0 18px 52px}
+  .route li::before{top:0;bottom:0;left:16px;right:auto;width:6px;height:auto}
+  .route li:first-child::before{top:18px;left:16px}
+  .route li:last-child::before{bottom:auto;height:18px;width:6px}
+  .route .stn{position:absolute;left:0;top:0;margin:0}
+  .route a{position:static;padding-top:6px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <button type="button" id="open-rail" aria-controls="rail" aria-expanded="false">Contents</button>
+  <div class="bar" id="topbar-bar"></div>
+  <span class="count" id="topbar-count"></span>
+</div>
+
+<div class="shell">
+  <nav class="rail" id="rail" aria-label="Contents">
+    <a class="rail-home" href="#top">Python to FastAPI</a>
+    <p class="rail-progress" id="rail-progress"></p>
+    <ol class="lines" id="rail-lines"></ol>
+  </nav>
+
+  <main id="top">
+    <div class="col">
+      <header class="hero">
+        <h1>From Python basics to shipping APIs.</h1>
+        <p class="lede">The shortest path from knowing Python to building and running a URL shortener with FastAPI, Postgres and Redis on your own. Each stop is one idea with one working example. Mark stops as done to track your progress on this device.</p>
+        <ol class="route" id="route"></ol>
+      </header>
+
+<!-- ===================================================================
+     To add a part: copy a <section class="part"> block, give it a unique id,
+     data-title and data-line (add a color in CSS) or data-color="#hex".
+     Each <article class="stop"> needs a unique id and an <h3>.
+     Navigation, numbering and progress are built automatically.
+     =================================================================== -->
+<section class="part" id="basics" data-title="Prerequisites: Python essentials" data-line="l0">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>Prerequisites: Python essentials</h2>
+    <p class="goal">The Python-specific behaviour and idioms the rest of this guide assumes. Skim what you know, stop on what surprises you.</p>
+  </div>
+
+  <article class="stop" id="b-values">
+    <h3>Names, mutability and truthiness</h3>
+    <p>Variables are names pointing at objects, not boxes holding values. Assignment never copies. Lists, dicts and sets are mutable; ints, strings and tuples are not.</p>
+    <div class="code"><pre><code class="language-python">a = [1, 2]
+b = a                  # same list, two names
+b.append(3)
+print(a)               # [1, 2, 3]
+c = a.copy()           # shallow copy; copy.deepcopy() for nested structures
+
+x == y                 # equal values
+x is None              # same object; use `is` only for None, True, False
+
+# falsy: None, False, 0, 0.0, "", [], {}, set(), ()   everything else is truthy
+if not items:
+    print("empty")
+name = user_input or "anonymous"     # first truthy value</code></pre></div>
+  </article>
+
+  <article class="stop" id="b-strings">
+    <h3>Strings and f-strings</h3>
+    <div class="code"><pre><code class="language-python">code, clicks, rate = "abc", 1234567, 0.4213
+
+f"{code!r} has {clicks:,} clicks"   # "'abc' has 1,234,567 clicks"
+f"{rate:.1%}"                       # '42.1%'
+f"{rate:.2f}"                       # '0.42'
+f"{clicks=}"                        # 'clicks=1234567'  handy for debugging
+
+"a,b,,c".split(",")                 # ['a', 'b', '', 'c']
+", ".join(["a", "b"])               # 'a, b'
+"  hi \n".strip()                   # 'hi'
+"https://x.dev".removeprefix("https://")   # 'x.dev'
+"abc".startswith(("a", "z"))        # True, accepts a tuple of options</code></pre></div>
+  </article>
+
+  <article class="stop" id="b-collections">
+    <h3>Collections, slicing and unpacking</h3>
+    <div class="code"><pre><code class="language-python">xs = [10, 20, 30, 40]
+xs[-1], xs[1:3], xs[::-1]           # 40, [20, 30], [40, 30, 20, 10]
+
+first, *rest = xs                   # first=10, rest=[20, 30, 40]
+a, b = b, a                         # swap without a temp variable
+point = (3, 4)                      # tuple: fixed, immutable record
+x, y = point
+
+d = {"abc": "https://example.com"}
+d.get("zzz")                        # None instead of KeyError
+d.get("zzz", "fallback")
+for key, value in d.items(): ...
+merged = {**defaults, **overrides}  # later keys win; also: defaults | overrides
+
+seen = {"abc", "xyz"}               # set: O(1) membership
+"abc" in seen                       # True; `in` also works on lists, dicts (keys), strings</code></pre></div>
+  </article>
+
+  <article class="stop" id="b-flow">
+    <h3>Loops and control flow idioms</h3>
+    <div class="code"><pre><code class="language-python">for i, url in enumerate(urls, start=1): ...        # index + value
+for code, url in zip(codes, urls, strict=True): ... # parallel; strict errors on length mismatch
+
+ranked = sorted(links, key=lambda l: l.clicks, reverse=True)
+any(l.clicks &gt; 0 for l in links)                    # True if at least one
+all(u.startswith("https") for u in urls)
+
+status = "active" if clicks else "unused"            # conditional expression
+if 0 &lt; n &lt;= 100: ...                                # chained comparison
+
+for url in urls:
+    if url.endswith(".exe"):
+        break
+else:                                                # runs only if the loop didn't break
+    print("all clean")
+
+match event:                                         # structural pattern matching (3.10+)
+    case {"type": "click", "code": code}:
+        record(code)
+    case {"type": "delete", "code": code}:
+        remove(code)
+    case _:
+        raise ValueError(event)</code></pre></div>
+  </article>
+
+  <article class="stop" id="b-args">
+    <h3>Function arguments: *args, **kwargs and friends</h3>
+    <p>Parameters can be positional-only (before <code>/</code>), keyword-only (after <code>*</code> or <code>*args</code>), or collected into a tuple (<code>*args</code>) and a dict (<code>**kwargs</code>).</p>
+    <div class="code"><pre><code class="language-python">def f(a, /, b, *args, c, d=0, **kwargs):
+    print(a, b, args, c, d, kwargs)
+
+f(1, 2, 3, 4, c=5, extra=6)
+# 1 2 (3, 4) 5 0 {'extra': 6}
+
+# the same stars unpack when calling
+nums = [1, 2]
+opts = {"c": 5, "d": 9}
+f(*nums, **opts)                     # 1 2 () 5 9 {}
+
+square = lambda n: n * n             # one-expression anonymous function
+
+def add_tag(tag, tags=[]):           # BUG: the default list is created once
+    tags.append(tag)                 # and shared by every call
+    return tags</code></pre></div>
+    <p>Passing a list or dict into a function passes the same object, so mutating it inside changes the caller's copy too.</p>
+  </article>
+
+  <article class="stop" id="b-scope">
+    <h3>Scope and closures</h3>
+    <p>Name lookup goes Local, Enclosing function, Global, Built-in. An inner function that remembers variables from its enclosing function is a closure; decorators are built on this.</p>
+    <div class="code"><pre><code class="language-python">def make_counter():
+    count = 0
+    def increment():
+        nonlocal count              # without this, count += 1 raises UnboundLocalError
+        count += 1
+        return count
+    return increment
+
+next_id = make_counter()
+next_id(), next_id()                # (1, 2)  count lives on between calls</code></pre></div>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="python" data-title="Python for applications" data-line="l1">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>Python for applications</h2>
+    <p class="goal">The pieces that turn single-file scripts into structured, maintainable programs.</p>
+  </div>
+
+  <article class="stop" id="py-setup">
+    <h3>Project setup with uv</h3>
+    <p><code>uv</code> replaces pip, venv and pyenv with one fast tool. It records dependencies in <code>pyproject.toml</code> and pins exact versions in <code>uv.lock</code>. Use Python 3.12 or newer.</p>
+    <div class="code"><pre><code class="language-bash"># install uv once: https://docs.astral.sh/uv/
+uv init shortener &amp;&amp; cd shortener
+uv python pin 3.13
+uv add "fastapi[standard]"    # updates pyproject.toml + uv.lock, creates .venv
+uv add --dev pytest           # dev-only dependency
+uv run python main.py         # runs inside .venv, no activation needed</code></pre></div>
+    <div class="note"><p><strong>Without uv:</strong> <code>python -m venv .venv</code>, then <code>source .venv/bin/activate</code> (Windows: <code>.venv\Scripts\activate</code>), then <code>pip install "fastapi[standard]"</code>. Never install project packages into your global Python.</p></div>
+  </article>
+
+  <article class="stop" id="py-modules">
+    <h3>Modules, packages and imports</h3>
+    <p>A module is a <code>.py</code> file; a package is a folder of modules with an <code>__init__.py</code>. A module's top-level code runs once, on first import, so a module-level object behaves like a singleton. That's how a shared <code>settings</code> object works later.</p>
+    <div class="code"><pre><code class="language-plaintext">shortener/
+├── pyproject.toml
+├── app/
+│   ├── __init__.py        # marks app/ as a package (can be empty)
+│   ├── main.py
+│   └── codes.py
+└── tests/
+    └── test_codes.py</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/main.py
+from app.codes import make_code      # absolute import (preferred)
+from . import codes                  # relative import, only inside a package
+
+def main() -&gt; None:
+    print(make_code())
+
+if __name__ == "__main__":           # true only when run directly, not on import
+    main()</code></pre></div>
+    <p>Run it as a module from the project root: <code>uv run python -m app.main</code>. For pytest to find <code>app</code>, add this to <code>pyproject.toml</code>:</p>
+    <div class="code"><pre><code class="language-ini">[tool.pytest.ini_options]
+pythonpath = ["."]</code></pre></div>
+    <div class="note"><p><strong>Watch out:</strong> circular imports (a imports b, b imports a) fail at startup. Move the shared piece into a third module both can import.</p></div>
+  </article>
+
+  <article class="stop" id="py-functions">
+    <h3>Function design</h3>
+    <p>Three habits for functions other code depends on: make optional arguments keyword-only, use <code>None</code> as the default for anything mutable, and pass functions around as values when behaviour varies.</p>
+    <div class="code"><pre><code class="language-python">def shorten(url: str, *, code: str | None = None, tags: list[str] | None = None) -&gt; str:
+    tags = tags or []            # never write tags: list = [] as a default
+    ...
+
+shorten("https://x.dev", code="xdev")   # ok
+shorten("https://x.dev", "xdev")        # TypeError: code is keyword-only (after *)
+
+transforms = {"upper": str.upper, "strip": str.strip}   # functions are values
+transforms["upper"]("hi")               # 'HI'</code></pre></div>
+    <div class="note"><p><strong>Why the default rule:</strong> a default value is evaluated once, when the function is defined, so a mutable default list is shared across every call.</p></div>
+  </article>
+
+  <article class="stop" id="py-classes">
+    <h3>Classes and dataclasses</h3>
+    <p>For plain internal data, <code>@dataclass</code> writes <code>__init__</code>, <code>__repr__</code> and <code>__eq__</code> for you.</p>
+    <div class="code"><pre><code class="language-python">from dataclasses import dataclass, field
+from datetime import datetime, timezone
+
+@dataclass
+class Link:
+    code: str
+    target: str
+    clicks: int = 0
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def hit(self) -&gt; None:
+        self.clicks += 1
+
+    @property                          # accessed like an attribute: link.is_popular
+    def is_popular(self) -&gt; bool:
+        return self.clicks &gt; 100
+
+    @classmethod                       # alternative constructor
+    def from_dict(cls, data: dict) -&gt; "Link":
+        return cls(**data)
+
+link = Link("abc", "https://example.com")
+link.hit()
+print(link)    # Link(code='abc', target='https://example.com', clicks=1, created_at=...)</code></pre></div>
+    <div class="note"><p><strong>Which to use:</strong> a dataclass for internal data, a Pydantic model for data crossing a boundary (API input/output, config), an ORM model for database rows. You'll meet all three.</p></div>
+  </article>
+
+  <article class="stop" id="py-exceptions">
+    <h3>Exceptions</h3>
+    <p>Define domain errors once, raise them deep in your logic, and translate them to HTTP responses in one place (see Responses and errors in the FastAPI part).</p>
+    <div class="code"><pre><code class="language-python">class LinkError(Exception):
+    """Base class for all link errors."""
+
+class LinkNotFound(LinkError): ...
+class CodeTaken(LinkError): ...
+
+def resolve(store: dict[str, str], code: str) -&gt; str:
+    try:
+        return store[code]
+    except KeyError as e:
+        raise LinkNotFound(code) from e     # keeps the original cause in the traceback
+
+try:
+    resolve({}, "nope")
+except LinkNotFound as e:
+    print(f"missing: {e}")
+else:
+    print("found")          # runs only if nothing was raised
+finally:
+    print("always runs")    # cleanup</code></pre></div>
+    <div class="note"><p><strong>Watch out:</strong> catch specific exceptions. A bare <code>except:</code> or <code>except Exception: pass</code> hides real bugs.</p></div>
+  </article>
+
+  <article class="stop" id="py-context">
+    <h3>Context managers</h3>
+    <p><code>with</code> guarantees cleanup even when an error happens. You'll use it for files, database sessions, HTTP clients and FastAPI's startup/shutdown.</p>
+    <div class="code"><pre><code class="language-python">import time
+from contextlib import contextmanager
+
+with open("links.txt", encoding="utf-8") as f:    # file closed even on error
+    lines = f.read().splitlines()
+
+@contextmanager
+def timer(label: str):
+    start = time.perf_counter()
+    try:
+        yield                       # the body of the with-block runs here
+    finally:
+        print(f"{label}: {time.perf_counter() - start:.3f}s")
+
+with timer("lookup"):
+    sum(range(1_000_000))</code></pre></div>
+    <p>The async version is identical in shape: <code>async with</code> and <code>@asynccontextmanager</code>.</p>
+  </article>
+
+  <article class="stop" id="py-decorators">
+    <h3>Decorators</h3>
+    <p>A decorator is a function that takes a function and returns a replacement. <code>@timed</code> above <code>def slow()</code> means <code>slow = timed(slow)</code>.</p>
+    <div class="code"><pre><code class="language-python">import functools
+import time
+
+def timed(fn):
+    @functools.wraps(fn)                 # keep fn's name and docstring
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            print(f"{fn.__name__} took {time.perf_counter() - start:.4f}s")
+    return wrapper
+
+@timed
+def slow() -&gt; None:
+    time.sleep(0.2)
+
+slow()     # slow took 0.2001s</code></pre></div>
+    <p>A decorator with arguments, like <code>@app.get("/health")</code>, is a function that returns a decorator. FastAPI's version registers your function as a route and returns it unchanged.</p>
+  </article>
+
+  <article class="stop" id="py-generators">
+    <h3>Generators and yield</h3>
+    <p>A function containing <code>yield</code> produces values lazily, one at a time. Code after the <code>yield</code> runs when the generator is resumed or closed: exactly how FastAPI dependencies do setup and teardown.</p>
+    <div class="code"><pre><code class="language-python">def read_urls(path: str):
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            if url := line.strip():      # walrus: assign and test in one step
+                yield url                # constant memory, even for huge files
+
+for url in read_urls("urls.txt"):
+    ...
+
+def session_scope():                     # the shape of a FastAPI yield dependency
+    print("setup")
+    try:
+        yield "session"                  # the value handed to the caller
+    finally:
+        print("cleanup")                 # runs when the generator is closed
+
+gen = session_scope()
+next(gen)      # prints "setup", returns 'session'
+gen.close()    # prints "cleanup"</code></pre></div>
+  </article>
+
+  <article class="stop" id="py-stdlib">
+    <h3>Files, JSON, env vars and logging</h3>
+    <div class="code"><pre><code class="language-python">import json
+import logging
+import os
+from pathlib import Path
+
+DATA = Path(__file__).parent / "data" / "links.json"
+DATA.parent.mkdir(parents=True, exist_ok=True)
+DATA.write_text(json.dumps({"abc": "https://example.com"}, indent=2), encoding="utf-8")
+links = json.loads(DATA.read_text(encoding="utf-8"))
+
+port = int(os.environ.get("PORT", "8000"))        # env values are always strings
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger(__name__)                 # one logger per module
+log.info("loaded %d links", len(links))           # args formatted only if emitted</code></pre></div>
+    <div class="note"><p><strong>Habit to build now:</strong> use <code>logging</code>, not <code>print</code>, for anything that will run as a server. Levels and module names make production logs searchable.</p></div>
+  </article>
+
+  <article class="stop" id="py-pytest">
+    <h3>Testing with pytest</h3>
+    <p>Tests are plain functions named <code>test_*</code> using plain <code>assert</code>. Fixtures provide reusable setup, injected by parameter name.</p>
+    <div class="code"><pre><code class="language-python"># tests/test_codes.py
+import pytest
+from app.codes import make_code
+
+def test_code_length():
+    assert len(make_code()) == 7
+
+@pytest.mark.parametrize("n", [1, 10, 1000])
+def test_codes_are_unique(n):
+    assert len({make_code() for _ in range(n)}) == n
+
+@pytest.fixture
+def store() -&gt; dict[str, str]:
+    return {"abc": "https://example.com"}
+
+def test_lookup(store):                    # fixture injected by name
+    assert store["abc"].startswith("https://")</code></pre></div>
+    <p>Run with <code>uv run pytest -q</code>. Write tests from the first milestone of your project, not after.</p>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="toolkit" data-title="The FastAPI toolkit" data-line="l2">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>The FastAPI toolkit</h2>
+    <p class="goal">FastAPI is mostly type hints, Pydantic and async put together. Learn these three on their own and FastAPI stops feeling like magic.</p>
+  </div>
+
+  <article class="stop" id="tk-typing">
+    <h3>Type hints</h3>
+    <p>Python does not enforce hints at runtime. Pydantic and FastAPI read them to validate input, convert types and generate API docs. A type checker (Pyright, mypy, or your editor's built-in one) catches mistakes before you run anything, so turn it on.</p>
+    <div class="code"><pre><code class="language-python">from collections.abc import Callable
+from typing import Annotated, Literal
+
+def top(counts: dict[str, int], n: int = 5) -&gt; list[str]: ...   # built-in generics
+def find(code: str) -&gt; str | None: ...                          # Optional[str] in older code
+
+Method = Literal["GET", "POST", "DELETE"]          # only these exact values
+Handler = Callable[[str], str]                     # takes a str, returns a str
+Code = Annotated[str, "any metadata"]              # a str, plus metadata FastAPI can read</code></pre></div>
+    <div class="note"><p><strong>Why <code>Annotated</code> matters:</strong> FastAPI uses it to attach extra meaning to a type: <code>Annotated[int, Query(ge=1)]</code> is "an int, read from the query string, at least 1".</p></div>
+  </article>
+
+  <article class="stop" id="tk-pydantic">
+    <h3>Pydantic v2</h3>
+    <p>A Pydantic model validates and converts data on the way in, and serializes it on the way out. In FastAPI, request bodies and responses are Pydantic models.</p>
+    <div class="code"><pre><code class="language-python">from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError, field_validator
+
+RESERVED = {"docs", "redoc", "links", "health"}
+
+class LinkCreate(BaseModel):                       # what the client sends
+    url: HttpUrl
+    code: str | None = Field(default=None, min_length=4, max_length=16,
+                             pattern=r"^[A-Za-z0-9_-]+$")
+
+    @field_validator("code")
+    @classmethod
+    def not_reserved(cls, v: str | None) -&gt; str | None:
+        if v in RESERVED:
+            raise ValueError("this code is reserved")
+        return v
+
+class LinkOut(BaseModel):                          # what the API returns
+    model_config = ConfigDict(from_attributes=True)    # allow building from ORM objects
+    code: str
+    target_url: str
+    clicks: int = 0
+
+data = LinkCreate.model_validate({"url": "https://example.com"})
+data.model_dump()          # -&gt; dict
+data.model_dump_json()     # -&gt; JSON string
+
+try:
+    LinkCreate(url="not a url")
+except ValidationError as e:
+    print(e.errors())      # FastAPI turns this into a 422 response automatically</code></pre></div>
+    <div class="note"><p><strong>Watch out:</strong> <code>HttpUrl</code> is a URL object, not a <code>str</code>. Convert with <code>str(data.url)</code> before storing it. Also note that Pydantic's default (lax) mode converts compatible values, such as <code>"5"</code> into <code>5</code> for an <code>int</code> field.</p></div>
+  </article>
+
+  <article class="stop" id="tk-settings">
+    <h3>Configuration with pydantic-settings</h3>
+    <p>Typed config read from environment variables and a <code>.env</code> file. It fails fast at startup if something required is missing. Install it separately: <code>uv add pydantic-settings</code>.</p>
+    <div class="code"><pre><code class="language-python"># app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
+    database_url: str                                # required: DATABASE_URL
+    redis_url: str = "redis://localhost:6379/0"
+    base_url: str = "http://localhost:8000"
+    api_key: str = "change-me"                       # API_KEY in .env
+    debug: bool = False                              # "true"/"1" become True
+
+settings = Settings()                                # import this everywhere</code></pre></div>
+    <div class="code"><pre><code class="language-ini"># .env  (add to .gitignore)
+DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/shortener
+REDIS_URL=redis://localhost:6379/0</code></pre></div>
+  </article>
+
+  <article class="stop" id="tk-async">
+    <h3>async and await</h3>
+    <p>Async lets one thread juggle many tasks that are waiting on I/O (network, database, Redis). While one request waits for Postgres, the event loop serves others. It is concurrency, not parallelism.</p>
+    <div class="code"><pre><code class="language-python">import asyncio
+import time
+
+async def fake_io(n: int) -&gt; int:          # calling it returns a coroutine; nothing runs yet
+    await asyncio.sleep(1)                 # yields control to the event loop while waiting
+    return n
+
+async def main() -&gt; None:
+    start = time.perf_counter()
+    results = await asyncio.gather(fake_io(1), fake_io(2), fake_io(3))
+    print(results, f"{time.perf_counter() - start:.1f}s")    # [1, 2, 3] 1.0s, not 3.0s
+
+asyncio.run(main())                        # starts the loop (FastAPI does this for you)</code></pre></div>
+    <p>A real example with an async HTTP client (<code>httpx</code> ships with <code>fastapi[standard]</code>):</p>
+    <div class="code"><pre><code class="language-python">import httpx
+
+async def check_alive(urls: list[str]) -&gt; dict[str, int]:
+    async with httpx.AsyncClient(timeout=5, follow_redirects=True) as client:
+        responses = await asyncio.gather(*(client.head(u) for u in urls))
+    return {u: r.status_code for u, r in zip(urls, responses)}</code></pre></div>
+    <p>The rules that matter in FastAPI:</p>
+    <ul>
+      <li>Inside <code>async def</code>, never call blocking code: <code>time.sleep</code>, <code>requests</code>, synchronous database drivers. It stalls every request on the server. Use async libraries, or wrap unavoidable blocking calls with <code>await asyncio.to_thread(fn, arg)</code>.</li>
+      <li>FastAPI runs plain <code>def</code> endpoints in a thread pool, so synchronous libraries are safe there. Choose per endpoint.</li>
+      <li>Async does not speed up CPU-heavy work. Offload that to a separate process or a job queue.</li>
+    </ul>
+  </article>
+
+  <article class="stop" id="tk-http">
+    <h3>HTTP in two minutes</h3>
+    <p>An API is a set of methods on resources, answered with status codes. Pick codes deliberately; clients depend on them.</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Method</th><th>Meaning</th><th>Idempotent</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET</code></td><td>Read a resource</td><td>Yes</td></tr>
+        <tr><td><code>POST</code></td><td>Create, or trigger an action</td><td>No</td></tr>
+        <tr><td><code>PUT</code> / <code>PATCH</code></td><td>Replace / partially update</td><td>PUT yes, PATCH not necessarily</td></tr>
+        <tr><td><code>DELETE</code></td><td>Remove</td><td>Yes</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Code</th><th>Use it when</th></tr></thead>
+      <tbody>
+        <tr><td><code>200</code> / <code>201</code> / <code>204</code></td><td>OK / created / success with no body</td></tr>
+        <tr><td><code>301</code> / <code>302</code> / <code>307</code></td><td>Permanent redirect (browsers cache it) / temporary / temporary, keeps method and body</td></tr>
+        <tr><td><code>400</code> / <code>422</code></td><td>Bad request / valid JSON that fails validation (FastAPI's default)</td></tr>
+        <tr><td><code>401</code> / <code>403</code></td><td>Not authenticated / authenticated but not allowed</td></tr>
+        <tr><td><code>404</code> / <code>409</code></td><td>Not found / conflicts with current state, such as a taken short code</td></tr>
+        <tr><td><code>429</code> / <code>500</code></td><td>Rate limited / your bug</td></tr>
+      </tbody>
+    </table></div>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="fastapi" data-title="FastAPI" data-line="l3">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>FastAPI</h2>
+    <p class="goal">Routes, validation, dependency injection, structure and tests. Enough to build a real service and know where each piece belongs.</p>
+  </div>
+
+  <article class="stop" id="fa-first">
+    <h3>Your first app</h3>
+    <div class="code"><pre><code class="language-python"># main.py
+from fastapi import FastAPI
+
+app = FastAPI(title="Shortener")
+
+@app.get("/health")
+async def health() -&gt; dict[str, str]:
+    return {"status": "ok"}</code></pre></div>
+    <div class="code"><pre><code class="language-bash">uv run fastapi dev main.py     # dev server with auto-reload on http://127.0.0.1:8000
+uv run fastapi run main.py     # production mode: no reload, listens on 0.0.0.0</code></pre></div>
+    <p>Open <code>/docs</code> for interactive Swagger UI, generated from your type hints. You'll test most endpoints there while building.</p>
+  </article>
+
+  <article class="stop" id="fa-params">
+    <h3>Path, query and body</h3>
+    <p>FastAPI decides where each parameter comes from by looking at it: named in the path means path parameter; a simple type (<code>str</code>, <code>int</code>, <code>bool</code>) means query string; a Pydantic model means JSON body.</p>
+    <div class="code"><pre><code class="language-python">from typing import Annotated
+from fastapi import FastAPI, Path, Query
+
+@app.get("/links/{code}")
+async def get_link(
+    code: Annotated[str, Path(min_length=4, max_length=16)],   # from the URL path
+    include_stats: bool = False,                               # ?include_stats=true
+): ...
+
+@app.get("/links")
+async def list_links(
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,           # validated query param
+    q: str | None = None,                                      # optional
+): ...
+
+@app.post("/links", status_code=201)
+async def create_link(payload: LinkCreate) -&gt; LinkOut:        # JSON body in, LinkOut out
+    ...</code></pre></div>
+  </article>
+
+  <article class="stop" id="fa-responses">
+    <h3>Responses and errors</h3>
+    <p>The return annotation validates, filters and documents what leaves your API. Fields not in the output model are never sent, which keeps internal columns private. If you return a dict or an ORM object instead of the model itself, declare the model with <code>response_model=LinkOut</code> on the decorator.</p>
+    <div class="code"><pre><code class="language-python">from fastapi import HTTPException, Request, status
+from fastapi.responses import JSONResponse, RedirectResponse
+
+store: dict[str, str] = {"abc": "https://example.com"}    # code -&gt; target URL
+
+@app.get("/links/{code}")
+async def get_link(code: str) -&gt; LinkOut:
+    target = store.get(code)
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="link not found")
+    return LinkOut(code=code, target_url=target)
+
+@app.get("/{code}")
+async def follow(code: str) -&gt; RedirectResponse:
+    target = resolve(store, code)                         # raises LinkNotFound
+    return RedirectResponse(target, status_code=302)      # default is 307
+
+@app.exception_handler(LinkNotFound)                       # translate domain errors once
+async def on_not_found(request: Request, exc: LinkNotFound) -&gt; JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": f"no link '{exc}'"})</code></pre></div>
+    <p><code>resolve</code> and <code>LinkNotFound</code> are from the Exceptions stop. Raising <code>HTTPException</code> directly is fine in routes; domain exceptions plus a handler keep HTTP details out of your business logic.</p>
+    <div class="note"><p><strong>Free validation errors:</strong> invalid input never reaches your function. FastAPI returns a 422 with a list of which fields failed and why.</p></div>
+  </article>
+
+  <article class="stop" id="fa-depends">
+    <h3>Dependency injection with Depends</h3>
+    <p>A dependency is a function FastAPI calls before your endpoint, passing in its result. Use it for database sessions, the current user, API keys, pagination and settings. Dependencies can depend on other dependencies, and each one is called at most once per request.</p>
+    <div class="code"><pre><code class="language-python">from typing import Annotated
+from fastapi import Depends, Header, HTTPException
+
+def pagination(skip: int = 0, limit: int = 20) -&gt; tuple[int, int]:
+    return skip, min(limit, 100)
+
+async def require_api_key(x_api_key: Annotated[str, Header()]) -&gt; None:
+    # reads the "x-api-key" header (underscores become hyphens)
+    if x_api_key != settings.api_key:
+        raise HTTPException(status_code=401, detail="invalid API key")
+
+Paging = Annotated[tuple[int, int], Depends(pagination)]      # reusable alias
+
+@app.get("/links", dependencies=[Depends(require_api_key)])   # run it, ignore its value
+async def list_links(paging: Paging):
+    skip, limit = paging
+    ...</code></pre></div>
+    <p>A dependency with <code>yield</code> does setup before the yield and cleanup after it. That's the pattern for database sessions in the persistence part. In tests, swap any dependency with <code>app.dependency_overrides[real] = fake</code>.</p>
+  </article>
+
+  <article class="stop" id="fa-structure">
+    <h3>Project structure with APIRouter</h3>
+    <p>Split by responsibility: routers handle HTTP, services hold business logic, schemas define API shapes, models define tables. Routers stay thin.</p>
+    <div class="code"><pre><code class="language-plaintext">app/
+├── main.py            # create app, lifespan, include routers, exception handlers
+├── core/config.py     # Settings
+├── db.py              # engine, session dependency
+├── cache.py           # Redis client dependency
+├── errors.py          # domain exceptions: LinkNotFound, CodeTaken
+├── models.py          # SQLAlchemy tables
+├── schemas.py         # Pydantic request/response models
+├── services/links.py  # business logic: no FastAPI imports here
+└── routers/
+    ├── links.py       # /links endpoints
+    └── redirect.py    # /{code}  (include this router last)
+tests/</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/routers/links.py
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/links", tags=["links"])
+
+@router.get("/{code}")
+async def get_link(code: str): ...
+
+# app/main.py
+from app.routers import links, redirect
+app.include_router(links.router)
+app.include_router(redirect.router)    # catch-all /{code} goes last</code></pre></div>
+    <div class="note"><p><strong>Route order matters:</strong> FastAPI matches routes in the order they were added. A catch-all like <code>/{code}</code> registered early would swallow <code>/health</code>.</p></div>
+  </article>
+
+  <article class="stop" id="fa-lifespan">
+    <h3>Lifespan, middleware and background tasks</h3>
+    <p><code>lifespan</code> runs code once at startup (before <code>yield</code>) and once at shutdown (after). Create long-lived clients here, not per request. Middleware wraps every request.</p>
+    <div class="code"><pre><code class="language-python">import time
+from contextlib import asynccontextmanager
+import redis.asyncio as redis
+from fastapi import FastAPI, Request
+from app.core.config import settings
+from app.db import engine
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
+    yield
+    await app.state.redis.aclose()
+    await engine.dispose()
+
+app = FastAPI(lifespan=lifespan)
+
+@app.middleware("http")                                 # runs around every request
+async def add_timing(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    response.headers["X-Process-Time"] = f"{time.perf_counter() - start:.4f}"
+    return response</code></pre></div>
+    <div class="code"><pre><code class="language-python">from fastapi import BackgroundTasks
+
+@router.get("/{code}")
+async def follow(code: str, background: BackgroundTasks):
+    background.add_task(log_click, code)        # runs after the response is sent
+    ...</code></pre></div>
+    <p>Background tasks suit small fire-and-forget work. For anything that must not be lost, use a real queue later. When a browser frontend on another origin starts calling your API, add FastAPI's <code>CORSMiddleware</code>.</p>
+  </article>
+
+  <article class="stop" id="fa-testing">
+    <h3>Testing endpoints</h3>
+    <div class="code"><pre><code class="language-python"># tests/conftest.py  (fixtures here are shared by all test files)
+import pytest
+from fastapi.testclient import TestClient
+from app.main import app
+
+@pytest.fixture
+def client():
+    with TestClient(app) as c:        # the with-block runs lifespan startup/shutdown
+        yield c
+    app.dependency_overrides.clear()
+
+# tests/test_links.py
+def test_health(client):
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok"}
+
+def test_rejects_bad_url(client):
+    r = client.post("/links", json={"url": "not a url"})
+    assert r.status_code == 422</code></pre></div>
+    <div class="note"><p><strong>Watch out:</strong> <code>TestClient(app)</code> used without <code>with</code> does not run lifespan, so anything created at startup (like the Redis client) won't exist.</p></div>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="data" data-title="Persistence and caching" data-line="l4">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>Persistence and caching</h2>
+    <p class="goal">Postgres as the source of truth through SQLAlchemy 2.0 (async), schema changes with Alembic, and Redis for speed.</p>
+  </div>
+
+  <article class="stop" id="db-infra">
+    <h3>Run Postgres and Redis locally</h3>
+    <div class="code"><pre><code class="language-yaml"># compose.yaml
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: shortener
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+  cache:
+    image: redis:7
+    ports: ["6379:6379"]
+volumes:
+  pgdata:</code></pre></div>
+    <div class="code"><pre><code class="language-bash">docker compose up -d
+uv add "sqlalchemy[asyncio]" asyncpg alembic redis pydantic-settings</code></pre></div>
+    <div class="note"><p><strong>No Docker yet?</strong> Start with SQLite: <code>uv add aiosqlite</code> and <code>DATABASE_URL=sqlite+aiosqlite:///./app.db</code>. The SQLAlchemy code below stays the same.</p></div>
+  </article>
+
+  <article class="stop" id="db-sqlalchemy">
+    <h3>SQLAlchemy 2.0: engine, session, models</h3>
+    <p>The engine holds a connection pool (one per app). A session is a unit of work (one per request). Models map classes to tables using typed <code>Mapped[...]</code> columns.</p>
+    <div class="code"><pre><code class="language-python"># app/db.py
+from collections.abc import AsyncIterator
+from typing import Annotated
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
+from app.core.config import settings
+
+engine = create_async_engine(settings.database_url)
+SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+class Base(DeclarativeBase):
+    pass
+
+async def get_session() -&gt; AsyncIterator[AsyncSession]:
+    async with SessionLocal() as session:     # closed after the request
+        yield session
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]</code></pre></div>
+    <div class="note"><p><strong>Why <code>expire_on_commit=False</code>:</strong> by default a commit marks loaded objects as stale, so the next attribute access silently reloads them from the database. In async code that implicit reload fails with <code>MissingGreenlet</code>. Turn it off, and call <code>await session.refresh(obj)</code> when you need values the database generated.</p></div>
+    <div class="code"><pre><code class="language-python"># app/models.py
+from datetime import datetime
+from sqlalchemy import DateTime, String, func
+from sqlalchemy.orm import Mapped, mapped_column
+from app.db import Base
+
+class Link(Base):
+    __tablename__ = "links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    target_url: Mapped[str] = mapped_column(String(2048))
+    clicks: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))   # "| None": nullable</code></pre></div>
+    <div class="note"><p><strong>Always store UTC, timezone-aware:</strong> plain <code>Mapped[datetime]</code> becomes a column without a timezone and returns naive datetimes. Comparing those to <code>datetime.now(timezone.utc)</code> raises <code>TypeError</code>. <code>DateTime(timezone=True)</code> maps to Postgres <code>timestamptz</code> and returns aware values. SQLite does not store timezones at all, so if you prototype there, treat every value as UTC.</p></div>
+  </article>
+
+  <article class="stop" id="db-crud">
+    <h3>Services own the transaction</h3>
+    <p>One rule for where database work lives: service functions query, commit and roll back, and raise domain exceptions. Routes only translate HTTP to a service call and back. Exception handlers in <code>main.py</code> map <code>LinkNotFound</code> to 404 and <code>CodeTaken</code> to 409.</p>
+    <div class="code"><pre><code class="language-python"># app/services/links.py   (no FastAPI imports)
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.codes import make_code
+from app.errors import CodeTaken, LinkNotFound
+from app.models import Link
+
+async def create_link(session: AsyncSession, target_url: str, code: str | None = None) -&gt; Link:
+    link = Link(code=code or make_code(), target_url=target_url)
+    session.add(link)
+    try:
+        await session.commit()
+    except IntegrityError as e:                 # unique constraint on code
+        await session.rollback()
+        raise CodeTaken(link.code) from e
+    await session.refresh(link)                 # load server defaults (created_at)
+    return link
+
+async def get_link(session: AsyncSession, code: str) -&gt; Link:
+    link = await session.scalar(select(Link).where(Link.code == code))
+    if link is None:
+        raise LinkNotFound(code)
+    return link
+
+async def record_click(session: AsyncSession, code: str) -&gt; None:
+    # atomic increment in the database: no read-modify-write race
+    await session.execute(update(Link).where(Link.code == code).values(clicks=Link.clicks + 1))
+    await session.commit()</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/routers/links.py   (HTTP in, HTTP out)
+from app.services import links as svc
+
+@router.post("", status_code=201)               # POST /links
+async def create(payload: LinkCreate, session: SessionDep) -&gt; LinkOut:
+    link = await svc.create_link(session, str(payload.url), payload.code)
+    return LinkOut.model_validate(link)
+
+@router.get("/{code}")
+async def read(code: str, session: SessionDep) -&gt; LinkOut:
+    return LinkOut.model_validate(await svc.get_link(session, code))</code></pre></div>
+    <div class="note"><p><strong>Watch out:</strong> in async SQLAlchemy, touching a relationship that wasn't loaded raises <code>MissingGreenlet</code> instead of lazily querying. Load it up front with <code>select(...).options(selectinload(Model.rel))</code>.</p></div>
+  </article>
+
+  <article class="stop" id="db-alembic">
+    <h3>Migrations with Alembic</h3>
+    <p>Never edit a live schema by hand. Alembic compares your models to the database and writes versioned migration scripts you commit to git.</p>
+    <div class="code"><pre><code class="language-bash">uv run alembic init -t async migrations     # async-ready template</code></pre></div>
+    <div class="code"><pre><code class="language-python"># migrations/env.py  (edit near the top)
+from app.core.config import settings
+from app.db import Base
+import app.models  # noqa: F401   registers the tables on Base.metadata
+
+config.set_main_option("sqlalchemy.url", settings.database_url)
+target_metadata = Base.metadata</code></pre></div>
+    <div class="code"><pre><code class="language-bash">uv run alembic revision --autogenerate -m "create links"   # review the generated file
+uv run alembic upgrade head                                 # apply
+uv run alembic downgrade -1                                 # undo the last one</code></pre></div>
+    <div class="note"><p><strong>Prototype shortcut:</strong> <code>async with engine.begin() as conn: await conn.run_sync(Base.metadata.create_all)</code> in lifespan creates tables instantly, but can't alter existing ones. Switch to Alembic before your data matters.</p></div>
+  </article>
+
+  <article class="stop" id="db-redis">
+    <h3>Redis basics</h3>
+    <p>An in-memory key-value store: microsecond reads, keys that expire on their own, and atomic counters. Create one client in lifespan (shown in the FastAPI part) and hand it out through a dependency.</p>
+    <div class="code"><pre><code class="language-python"># app/cache.py
+from typing import Annotated
+import redis.asyncio as redis
+from fastapi import Depends, Request
+
+def get_redis(request: Request) -&gt; redis.Redis:
+    return request.app.state.redis
+
+RedisDep = Annotated[redis.Redis, Depends(get_redis)]
+
+# the commands you'll actually use
+await r.set("link:abc", "https://example.com", ex=86_400)   # value with a 24h TTL
+await r.get("link:abc")                                      # str, or None if missing/expired
+await r.delete("link:abc")
+await r.incr("clicks:abc")                                   # atomic +1, returns new value
+await r.expire("clicks:abc", 3600)                           # set a TTL on an existing key</code></pre></div>
+    <div class="note"><p><strong>Conventions:</strong> namespace keys like <code>link:{code}</code>, give cached values a TTL, and treat Redis as disposable. The database stays the source of truth.</p></div>
+  </article>
+
+  <article class="stop" id="db-patterns">
+    <h3>Cache-aside</h3>
+    <p>Read from the cache; on a miss, read the database and fill the cache. When the data changes, delete the key so the next read refills it with fresh data.</p>
+    <div class="code"><pre><code class="language-python"># app/services/links.py (continued)
+import redis.asyncio as redis
+
+async def resolve(session: AsyncSession, cache: redis.Redis, code: str) -&gt; str:
+    if cached := await cache.get(f"link:{code}"):
+        return cached                                            # hit
+    link = await get_link(session, code)                         # miss: raises LinkNotFound
+    await cache.set(f"link:{code}", link.target_url, ex=86_400)  # fill
+    return link.target_url
+
+async def delete_link(session: AsyncSession, cache: redis.Redis, code: str) -&gt; None:
+    link = await get_link(session, code)
+    await session.delete(link)
+    await session.commit()
+    await cache.delete(f"link:{code}")                           # invalidate after the commit</code></pre></div>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="capstone" data-title="Capstone: URL shortener" data-line="l5">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>Capstone: build the URL shortener</h2>
+    <p class="goal">A spec and a sequence of milestones. No solution code here, on purpose: everything you need is in the stops above.</p>
+  </div>
+
+  <article class="stop" id="cap-spec">
+    <h3>The spec</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Endpoint</th><th>Does</th><th>Responses</th></tr></thead>
+      <tbody>
+        <tr><td><code>POST /links</code></td><td>Create a short link; optional custom code</td><td><code>201</code> with code and short URL, <code>409</code> code taken, <code>422</code> invalid input</td></tr>
+        <tr><td><code>GET /{code}</code></td><td>Redirect to the target and count the click</td><td><code>302</code>, <code>404</code>, <code>410</code> if expired</td></tr>
+        <tr><td><code>GET /links/{code}</code></td><td>Link details and click count</td><td><code>200</code>, <code>404</code></td></tr>
+        <tr><td><code>DELETE /links/{code}</code></td><td>Remove the link and its cache entry</td><td><code>204</code>, <code>404</code></td></tr>
+        <tr><td><code>GET /health</code></td><td>Liveness check</td><td><code>200</code></td></tr>
+      </tbody>
+    </table></div>
+  </article>
+
+  <article class="stop" id="cap-milestones">
+    <h3>Milestones</h3>
+    <ol>
+      <li>In-memory version: a <code>dict</code> for storage, all five endpoints working in <code>/docs</code>.</li>
+      <li>Validation: <code>LinkCreate</code> / <code>LinkOut</code> schemas, custom codes, reserved words, domain exceptions mapped to status codes.</li>
+      <li>Structure: split into routers, services, schemas and config. Add pytest tests for every endpoint.</li>
+      <li>Persistence: Postgres (or SQLite) through SQLAlchemy, with an Alembic migration. Same tests, now with a test database.</li>
+      <li>Caching: cache-aside on redirects, cache invalidation on delete.</li>
+      <li>Hardening: rate limiting on creation, expiring links (<code>expires_at</code>), an API key for write endpoints.</li>
+      <li>Ship it: a Dockerfile for the app, added to <code>compose.yaml</code>, running with <code>fastapi run</code>.</li>
+    </ol>
+  </article>
+
+  <article class="stop" id="cap-hints">
+    <h3>Design hints</h3>
+    <ul>
+      <li><strong>Generating codes:</strong> either encode the row's integer id in base62 (short, unique, but guessable and sequential) or draw random characters with the <code>secrets</code> module and retry on collision. Try both and compare.</li>
+      <li><strong>Redirect status:</strong> <code>301</code> is cached by browsers, so repeat visits never reach your server and click counts undercount. Use <code>302</code> or <code>307</code>.</li>
+      <li><strong>Reserved codes:</strong> any code that matches one of your own paths (<code>docs</code>, <code>links</code>, <code>health</code>) must be rejected at validation.</li>
+      <li><strong>Expiry:</strong> compare <code>expires_at</code> with <code>datetime.now(timezone.utc)</code>. Both sides must be timezone-aware.</li>
+      <li><strong>Rate limiting:</strong> a fixed window is one Redis counter per client per minute. <code>INCR</code> a key like <code>rl:{client}:{minute}</code>, set a 60-second <code>EXPIRE</code> when the count is 1, and return <code>429</code> above your limit. Two traps: <code>INCR</code> and <code>EXPIRE</code> are separate calls, so run them in a pipeline with <code>transaction=True</code>; and behind a proxy, <code>request.client.host</code> is the proxy's address (and <code>request.client</code> can be <code>None</code>), so configure the server to trust the proxy's forwarded header (uvicorn: <code>--forwarded-allow-ips</code>).</li>
+      <li><strong>Counting clicks at scale:</strong> writing to Postgres on every redirect gets expensive. Stretch goal: <code>INCR</code> in Redis and flush totals to the database periodically.</li>
+      <li><strong>Normalize before storing:</strong> <code>str(payload.url)</code> from <code>HttpUrl</code> gives a normalized URL string; decide whether identical URLs should share one code.</li>
+    </ul>
+  </article>
+</section>
+
+<!-- ===================================================================
+     NEXT PARTS GO HERE (LLMs, tool calling, RAG, MCP, evals, ...)
+     <section class="part" id="llm" data-title="..." data-color="#hex">
+       <div class="part-head"><p class="part-num"></p><h2>...</h2><p class="goal">...</p></div>
+       <article class="stop" id="llm-..."><h3>...</h3> ... </article>
+     </section>
+     =================================================================== -->
+
+      <footer>
+        <p><a href="../">All guides</a>. Next: <a href="../ai-engineering/">AI engineering: the build route</a>.</p>
+        <p>Official references, worth bookmarking: <a href="https://fastapi.tiangolo.com/" target="_blank" rel="noopener">FastAPI</a>, <a href="https://docs.pydantic.dev/latest/" target="_blank" rel="noopener">Pydantic</a>, <a href="https://docs.sqlalchemy.org/en/20/" target="_blank" rel="noopener">SQLAlchemy 2.0</a>, <a href="https://alembic.sqlalchemy.org/" target="_blank" rel="noopener">Alembic</a>, <a href="https://redis.readthedocs.io/" target="_blank" rel="noopener">redis-py</a>, <a href="https://docs.astral.sh/uv/" target="_blank" rel="noopener">uv</a>, <a href="https://docs.python.org/3/library/asyncio.html" target="_blank" rel="noopener">asyncio</a>.</p>
+      </footer>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function () {
+  const KEY = "pyfast:done:v1";
+  let done = new Set();
+  try { done = new Set(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify([...done])); } catch (e) {} };
+
+  const parts = [...document.querySelectorAll("section.part")];
+  const railLines = document.getElementById("rail-lines");
+  const route = document.getElementById("route");
+  const topbarBar = document.getElementById("topbar-bar");
+  const allStops = [];
+
+  parts.forEach((part, i) => {
+    if (part.dataset.color) part.style.setProperty("--line", part.dataset.color);
+    const color = getComputedStyle(part).getPropertyValue("--line").trim();
+    const num = i + 1;
+    const title = part.dataset.title || part.querySelector("h2").textContent;
+    const numEl = part.querySelector(".part-num");
+    if (numEl) numEl.textContent = "Part " + num;
+    const stops = [...part.querySelectorAll("article.stop")];
+
+    // rail
+    const li = document.createElement("li");
+    li.className = "line";
+    li.style.setProperty("--line", color);
+    const head = document.createElement("a");
+    head.className = "line-name"; head.href = "#" + part.id;
+    const badge = document.createElement("span");
+    badge.className = "line-num"; badge.textContent = num;
+    head.append(badge, document.createTextNode(title));
+    const ol = document.createElement("ol");
+    ol.className = "stations";
+    li.append(head, ol);
+
+    stops.forEach((stop) => {
+      allStops.push(stop);
+      stop.dataset.stop = stop.id;
+      const a = document.createElement("a");
+      a.href = "#" + stop.id; a.dataset.stop = stop.id;
+      const dot = document.createElement("span"); dot.className = "dot";
+      const label = document.createElement("span"); label.textContent = stop.querySelector("h3").textContent;
+      a.append(dot, label);
+      const sli = document.createElement("li"); sli.append(a); ol.append(sli);
+
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "done-btn"; btn.dataset.stop = stop.id;
+      btn.addEventListener("click", () => {
+        done.has(stop.id) ? done.delete(stop.id) : done.add(stop.id);
+        save(); render();
+      });
+      stop.append(btn);
+    });
+    railLines.append(li);
+
+    // hero route
+    const r = document.createElement("li");
+    r.style.setProperty("--line", color);
+    r.dataset.part = part.id;
+    r.innerHTML = '<a href="#' + part.id + '"><span class="stn"></span><span class="r-title"></span><span class="r-count"></span></a>';
+    r.querySelector(".stn").textContent = num;
+    r.querySelector(".r-title").textContent = title;
+    route.append(r);
+
+    // mobile progress segment
+    const seg = document.createElement("span");
+    seg.className = "seg"; seg.style.setProperty("--line", color); seg.dataset.part = part.id;
+    seg.innerHTML = "<i></i>";
+    topbarBar.append(seg);
+  });
+
+  function render() {
+    document.querySelectorAll("[data-stop]").forEach((el) => {
+      const isDone = done.has(el.dataset.stop);
+      el.classList.toggle("is-done", isDone);
+      if (el.classList.contains("done-btn")) {
+        el.setAttribute("aria-pressed", String(isDone));
+        el.textContent = isDone ? "Done" : "Mark done";
+      }
+    });
+    parts.forEach((part) => {
+      const stops = [...part.querySelectorAll("article.stop")];
+      const n = stops.filter((s) => done.has(s.id)).length;
+      const r = route.querySelector('[data-part="' + part.id + '"]');
+      r.querySelector(".r-count").textContent = n + " of " + stops.length + " stops";
+      r.querySelector(".stn").classList.toggle("full", n === stops.length && n > 0);
+      topbarBar.querySelector('[data-part="' + part.id + '"] i').style.width = (stops.length ? (100 * n / stops.length) : 0) + "%";
+    });
+    const total = allStops.length;
+    const d = allStops.filter((s) => done.has(s.id)).length;
+    document.getElementById("rail-progress").textContent = d + " of " + total + " stops done";
+    document.getElementById("topbar-count").textContent = d + "/" + total;
+  }
+  render();
+
+  // current stop highlight
+  const railLinks = new Map([...document.querySelectorAll(".stations a")].map((a) => [a.dataset.stop, a]));
+  let current = null;
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        if (current) current.classList.remove("is-current");
+        current = railLinks.get(e.target.id);
+        if (current) current.classList.add("is-current");
+      }
+    });
+  }, { rootMargin: "-20% 0px -70% 0px" });
+  allStops.forEach((s) => io.observe(s));
+
+  // mobile drawer
+  const openBtn = document.getElementById("open-rail");
+  const setOpen = (open) => {
+    document.body.classList.toggle("rail-open", open);
+    openBtn.setAttribute("aria-expanded", String(open));
+  };
+  openBtn.addEventListener("click", () => setOpen(!document.body.classList.contains("rail-open")));
+  document.getElementById("rail").addEventListener("click", (e) => { if (e.target.closest("a")) setOpen(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
+  document.addEventListener("click", (e) => {
+    if (document.body.classList.contains("rail-open") && !e.target.closest("#rail") && !e.target.closest("#open-rail")) setOpen(false);
+  });
+
+  // code: highlight + copy
+  if (window.hljs) { try { hljs.highlightAll(); } catch (e) {} }
+  document.querySelectorAll(".code").forEach((wrap) => {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "copy"; btn.textContent = "Copy";
+    btn.addEventListener("click", async () => {
+      const text = wrap.querySelector("code").innerText;
+      let ok = false;
+      try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = text; document.body.append(ta); ta.select();
+          ok = document.execCommand("copy"); ta.remove();
+        } catch (e2) {}
+      }
+      btn.textContent = ok ? "Copied" : "Copy failed";
+      setTimeout(() => (btn.textContent = "Copy"), 1400);
+    });
+    wrap.append(btn);
+  });
+})();
+</script>
+</body>
+</html>
