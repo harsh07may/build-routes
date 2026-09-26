@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI foundations: a crash course</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --paper:#F4F6F5; --surface:#FFFFFF; --ink:#17212F; --muted:#5A6576; --rule:#D8DEE4; --code-bg:#EEF2F5;
+  --l0:#B63C7C; --l1:#2F6BDB; --l2:#C98A0C; --l3:#05927F; --l4:#D2413A; --l5:#7A4AD8; --l6:#5F7A12; --l7:#237BA6; --l8:#B85A1B;
+  --k-kw:#A0269E; --k-str:#377A1F; --k-num:#AE5700; --k-com:#76818F; --k-fn:#2B5CC2; --k-bi:#0A7B80; --k-meta:#B02A20; --k-attr:#95560A;
+  --sans:"Schibsted Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --rail-w:288px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E141D; --surface:#141C28; --ink:#E3E8EF; --muted:#94A1B3; --rule:#253040; --code-bg:#111925;
+    --l0:#E36FAB; --l1:#5B8FF0; --l2:#E8AE33; --l3:#2EC2AA; --l4:#F0665E; --l5:#A17DF2; --l6:#A6C24A; --l7:#5DB6E0; --l8:#F08F4E;
+    --k-kw:#D494F4; --k-str:#9ED27E; --k-num:#F2AA6B; --k-com:#7E8B9D; --k-fn:#86ADFF; --k-bi:#61CFCA; --k-meta:#FF8D84; --k-attr:#EFC873;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E141D; --surface:#141C28; --ink:#E3E8EF; --muted:#94A1B3; --rule:#253040; --code-bg:#111925;
+  --l0:#E36FAB; --l1:#5B8FF0; --l2:#E8AE33; --l3:#2EC2AA; --l4:#F0665E; --l5:#A17DF2; --l6:#A6C24A; --l7:#5DB6E0; --l8:#F08F4E;
+  --k-kw:#D494F4; --k-str:#9ED27E; --k-num:#F2AA6B; --k-com:#7E8B9D; --k-fn:#86ADFF; --k-bi:#61CFCA; --k-meta:#FF8D84; --k-attr:#EFC873;
+}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 24px);scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.62 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--l1);outline-offset:2px;border-radius:4px}
+
+/* part line colors: add a data-line value here (or use data-color on the section) to add a part */
+[data-line="l0"]{--line:var(--l0)} [data-line="l1"]{--line:var(--l1)} [data-line="l2"]{--line:var(--l2)} [data-line="l3"]{--line:var(--l3)}
+[data-line="l4"]{--line:var(--l4)} [data-line="l5"]{--line:var(--l5)}
+[data-line="l6"]{--line:var(--l6)} [data-line="l7"]{--line:var(--l7)} [data-line="l8"]{--line:var(--l8)}
+
+.shell{display:grid;grid-template-columns:var(--rail-w) minmax(0,1fr)}
+
+/* ---------- rail ---------- */
+.rail{position:sticky;top:0;height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow-y:auto;border-right:1px solid var(--rule);background:var(--paper);padding:28px 20px 40px 24px}
+.rail-home{display:block;font-weight:800;font-size:18px;letter-spacing:-.01em;text-decoration:none;margin-bottom:4px}
+.rail-progress{color:var(--muted);font-size:14px;margin:0 0 22px}
+.lines,.stations{list-style:none;margin:0;padding:0}
+.line{margin-bottom:18px}
+.line-name{display:flex;gap:10px;align-items:center;font-weight:700;font-size:14.5px;text-decoration:none;line-height:1.3}
+.line-num{flex:none;width:24px;height:24px;border-radius:50%;background:var(--line);color:#fff;display:grid;place-items:center;font-size:12.5px;font-weight:800}
+.stations{margin:6px 0 0 11px;border-left:3px solid var(--line);padding:2px 0 2px 0}
+.stations a{position:relative;display:flex;align-items:center;gap:10px;padding:4px 0 4px 16px;font-size:14px;color:var(--muted);text-decoration:none;line-height:1.3}
+.stations a:hover{color:var(--ink)}
+.stations .dot{position:absolute;left:-8.5px;width:14px;height:14px;border-radius:50%;background:var(--paper);border:3px solid var(--line)}
+.stations a.is-done .dot{background:var(--line)}
+.stations a.is-current{color:var(--ink);font-weight:700}
+.stations a.is-current .dot{transform:scale(1.25)}
+
+/* ---------- main ---------- */
+main{padding:56px clamp(20px,5vw,72px) 120px;min-width:0}
+.col{max-width:780px}
+.hero h1{font-size:clamp(40px,6.2vw,72px);line-height:1.02;letter-spacing:-.035em;font-weight:800;margin:0 0 18px}
+.hero .lede{font-size:19px;color:var(--muted);max-width:60ch;margin:0 0 36px}
+
+.route{list-style:none;margin:0 0 72px;padding:0;display:flex}
+.route li{flex:1;position:relative;padding-top:4px;min-width:0}
+.route li::before{content:"";position:absolute;top:19px;left:0;right:0;height:6px;background:var(--line)}
+.route li:first-child::before{left:18px}
+.route li:last-child::before{right:auto;width:18px}
+.route a{position:relative;display:block;text-decoration:none;padding-right:12px}
+.route .stn{width:38px;height:38px;border-radius:50%;background:var(--surface);border:5px solid var(--line);display:grid;place-items:center;font-weight:800;font-size:15px;margin-bottom:10px}
+.route .stn.full{background:var(--line);color:#fff}
+.route .r-title{font-weight:700;font-size:15px;line-height:1.25;display:block}
+.route .r-count{font-size:13.5px;color:var(--muted)}
+
+.part{margin-top:88px}
+.part-head{border-top:6px solid var(--line);padding-top:18px;margin-bottom:8px}
+.part-num{margin:0;font-weight:700;color:var(--line);font-size:15px}
+.part-head h2{font-size:clamp(30px,4vw,42px);line-height:1.08;letter-spacing:-.025em;margin:4px 0 10px;font-weight:800}
+.part-head .goal{color:var(--muted);margin:0;max-width:62ch}
+
+.stop{margin-top:52px}
+.stop h3{position:relative;font-size:23px;letter-spacing:-.015em;line-height:1.2;margin:0 0 10px;padding-left:26px}
+.stop h3::before{content:"";position:absolute;left:0;top:.28em;width:15px;height:15px;border-radius:50%;border:3px solid var(--line);background:var(--paper)}
+.stop.is-done h3::before{background:var(--line)}
+.stop p,.stop li{max-width:68ch}
+.stop p{margin:0 0 14px}
+.stop ul,.stop ol{padding-left:22px;margin:0 0 16px}
+.stop li{margin-bottom:6px}
+code{font-family:var(--mono);font-size:.86em}
+:not(pre)>code{background:var(--code-bg);border:1px solid var(--rule);border-radius:5px;padding:.08em .35em;white-space:nowrap}
+
+.code{position:relative;margin:16px 0 18px}
+pre{margin:0;background:var(--code-bg);border:1px solid var(--rule);border-left:4px solid var(--line);border-radius:4px 10px 10px 4px;padding:16px 18px;overflow-x:auto;font:400 13.5px/1.65 var(--mono);tab-size:4}
+pre code{font-size:inherit;white-space:pre}
+.copy{position:absolute;top:8px;right:8px;font:600 12.5px var(--sans);background:var(--surface);color:var(--muted);border:1px solid var(--rule);border-radius:6px;padding:4px 9px;cursor:pointer;opacity:0;transition:opacity .15s}
+.code:hover .copy,.copy:focus-visible{opacity:1}
+@media (hover:none){.copy{opacity:1}}
+
+.hljs-keyword,.hljs-selector-tag{color:var(--k-kw)}
+.hljs-string,.hljs-regexp{color:var(--k-str)}
+.hljs-number,.hljs-literal{color:var(--k-num)}
+.hljs-comment{color:var(--k-com);font-style:italic}
+.hljs-title,.hljs-title.function_,.hljs-section{color:var(--k-fn)}
+.hljs-built_in,.hljs-type,.hljs-title.class_{color:var(--k-bi)}
+.hljs-meta{color:var(--k-meta)}
+.hljs-attr,.hljs-variable,.hljs-params{color:var(--k-attr)}
+.hljs-subst{color:var(--ink)}
+
+.note{margin:16px 0;padding:12px 16px;background:var(--surface);border:1px solid var(--rule);border-radius:10px;font-size:15.5px;max-width:68ch}
+.note p:last-child{margin-bottom:0}
+.note strong{color:var(--line)}
+
+.tbl-wrap{overflow-x:auto;margin:14px 0 18px;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-weight:700;background:var(--code-bg)}
+tr:last-child td{border-bottom:0}
+td code{white-space:nowrap}
+
+.done-btn{display:inline-flex;align-items:center;gap:8px;margin-top:6px;font:600 14px var(--sans);color:var(--muted);background:transparent;border:1px solid var(--rule);border-radius:999px;padding:6px 14px 6px 10px;cursor:pointer}
+.done-btn::before{content:"";width:12px;height:12px;border-radius:50%;border:2.5px solid var(--line)}
+.done-btn:hover{color:var(--ink);border-color:var(--line)}
+.done-btn[aria-pressed="true"]{color:var(--ink);border-color:var(--line)}
+.done-btn[aria-pressed="true"]::before{background:var(--line)}
+
+footer{margin-top:110px;padding-top:22px;border-top:1px solid var(--rule);color:var(--muted);font-size:15px}
+footer a{color:var(--ink)}
+
+
+/* ---------- diagrams ---------- */
+.fig{margin:18px 0 20px}
+.fig-scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:12px;background:var(--surface);padding:14px}
+.fig svg{display:block;width:100%;min-width:560px;height:auto}
+.fig figcaption{font-size:14.5px;color:var(--muted);margin-top:8px;max-width:68ch}
+.fig text{fill:var(--ink);font-family:var(--sans);font-size:14px}
+.fig .t-mut{fill:var(--muted);font-size:13px}
+.fig .t-mono{font-family:var(--mono);font-size:12.5px;white-space:pre}
+.fig .t-inv{fill:var(--paper);font-weight:700}
+.fig .d-box{fill:var(--paper);stroke:var(--rule);stroke-width:1.5}
+.fig .d-acc{fill:var(--line)}
+.fig .d-soft{fill:color-mix(in srgb,var(--line) 16%,var(--surface));stroke:var(--line);stroke-width:1.5}
+.fig .d-ln{stroke:var(--muted);stroke-width:1.6;fill:none}
+.fig .d-dash{stroke-dasharray:5 5}
+.fig .d-ring{fill:none;stroke:var(--line);stroke-width:1.6;stroke-dasharray:6 5}
+.fig .d-pt{fill:var(--muted)}
+.fig .d-ptacc{fill:var(--line)}
+.d-arrowhead{fill:var(--muted)}
+@media (max-width:600px){.fig figcaption::before{content:"Swipe the diagram sideways to see all of it. "}}
+
+/* ---------- mobile ---------- */
+.topbar{display:none}
+@media (max-width: 900px){
+  .shell{display:block}
+  .topbar{display:flex;position:sticky;top:0;z-index:20;align-items:center;gap:14px;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top,0px));margin-top:calc(-1 * env(safe-area-inset-top,0px));background:var(--paper);border-bottom:1px solid var(--rule)}
+  .topbar button{font:700 14.5px var(--sans);color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:999px;padding:6px 14px;cursor:pointer}
+  .topbar .bar{flex:1;display:flex;gap:4px}
+  .topbar .seg{flex:1;height:6px;border-radius:3px;background:var(--rule);overflow:hidden}
+  .topbar .seg i{display:block;height:100%;background:var(--line);width:0}
+  .topbar .count{font-size:13.5px;color:var(--muted);white-space:nowrap}
+  .rail{position:fixed;inset:0;top:0;height:100%;z-index:30;padding-top:calc(24px + env(safe-area-inset-top,0px));transform:translateX(-100%);transition:transform .2s ease;width:min(88vw,340px);box-shadow:0 0 0 100vmax transparent}
+  body.rail-open .rail{transform:none;box-shadow:0 0 0 100vmax rgba(8,12,18,.45)}
+  main{padding-top:32px}
+  .route{flex-direction:column;gap:0}
+  .route li{padding:0 0 18px 52px}
+  .route li::before{top:0;bottom:0;left:16px;right:auto;width:6px;height:auto}
+  .route li:first-child::before{top:18px;left:16px}
+  .route li:last-child::before{bottom:auto;height:18px;width:6px}
+  .route .stn{position:absolute;left:0;top:0;margin:0}
+  .route a{position:static;padding-top:6px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <button type="button" id="open-rail" aria-controls="rail" aria-expanded="false">Contents</button>
+  <div class="bar" id="topbar-bar"></div>
+  <span class="count" id="topbar-count"></span>
+</div>
+
+<div class="shell">
+  <nav class="rail" id="rail" aria-label="Contents">
+    <a class="rail-home" href="#top">AI foundations</a>
+    <p class="rail-progress" id="rail-progress"></p>
+    <ol class="lines" id="rail-lines"></ol>
+  </nav>
+
+  <main id="top">
+    <div class="col">
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-arrowhead"/></marker></defs></svg>
+
+      <header class="hero">
+        <h1>Before you build with AI.</h1>
+        <p class="lede">A crash course in the ideas behind the AI engineering guide: what a large language model is, how the Claude API works, what embeddings and vector databases do, and how RAG, tools, agents and MCP fit together. Mostly concepts and diagrams; code only appears where it makes an idea concrete, and in the setup at the end.</p>
+        <ol class="route" id="route"></ol>
+      </header>
+
+<!-- ===================================================================
+     To add a part: copy a <section class="part"> block, give it a unique id,
+     data-title and data-line. Each <article class="stop"> needs a unique id and an <h3>.
+     Diagrams: inline SVG inside <figure class="fig">, styled by the .fig / .d-* classes.
+     =================================================================== -->
+<section class="part" id="llms" data-title="How LLMs work" data-line="l1">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>How LLMs work</h2>
+    <p class="goal">What a large language model actually does, why it behaves the way it does, and what that means for the software you build around it.</p>
+  </div>
+
+  <article class="stop" id="lm-what">
+    <h3>What an LLM is</h3>
+    <p>A large language model (LLM) is a neural network trained to do one thing: given some text, predict what comes next. It scores every possible next piece of text, one is chosen, appended, and the model predicts again. Answering questions, summarizing, translating and writing code all come out of this single repeated step.</p>
+    <figure class="fig">
+      <div class="fig-scroll"><svg xml:space="preserve" viewBox="0 0 640 232" role="img" aria-label="Text goes into the model, which outputs probabilities for the next token; the chosen token is appended and the loop repeats.">
+        <text class="t-mut" x="110" y="60" text-anchor="middle">text so far</text>
+        <rect class="d-box" x="10" y="72" width="200" height="56" rx="10"/>
+        <text x="110" y="105" text-anchor="middle">The cat sat on the</text>
+        <line class="d-ln" x1="210" y1="100" x2="252" y2="100" marker-end="url(#arr)"/>
+        <rect class="d-acc" x="256" y="62" width="110" height="76" rx="12"/>
+        <text class="t-inv" x="311" y="105" text-anchor="middle">LLM</text>
+        <line class="d-ln" x1="366" y1="100" x2="408" y2="100" marker-end="url(#arr)"/>
+        <text class="t-mut" x="520" y="30" text-anchor="middle">next-token probabilities</text>
+        <text x="462" y="60" text-anchor="end">mat</text><rect class="d-acc" x="470" y="45" width="118" height="20" rx="4"/><text class="t-mut" x="596" y="60">62%</text>
+        <text x="462" y="90" text-anchor="end">floor</text><rect class="d-soft" x="470" y="75" width="27" height="20" rx="4"/><text class="t-mut" x="505" y="90">14%</text>
+        <text x="462" y="120" text-anchor="end">sofa</text><rect class="d-soft" x="470" y="105" width="17" height="20" rx="4"/><text class="t-mut" x="495" y="120">9%</text>
+        <text x="462" y="150" text-anchor="end">roof</text><rect class="d-soft" x="470" y="135" width="6" height="20" rx="3"/><text class="t-mut" x="484" y="150">3%</text>
+        <path class="d-ln d-dash" d="M 530 165 C 530 212, 110 212, 110 132" marker-end="url(#arr)"/>
+        <text class="t-mut" x="320" y="226" text-anchor="middle">pick a token, append it, predict again</text>
+      </svg></div>
+      <figcaption>Illustrative numbers. This step repeats once per token until the model emits a stop signal or reaches your output limit.</figcaption>
+    </figure>
+    <div class="note"><p><strong>It generates, it doesn't look up.</strong> There is no table of facts inside the model. What it "knows" is spread across billions of learned numbers (weights), which is why an answer can be fluent and wrong at the same time.</p></div>
+  </article>
+
+  <article class="stop" id="lm-training">
+    <h3>How a model gets trained</h3>
+    <p><strong>Pretraining</strong> runs the model over a huge amount of text so it learns language, facts, reasoning patterns and code. The result predicts text well but isn't yet a helpful assistant. <strong>Post-training</strong> then tunes it, using example conversations and human and AI feedback, to follow instructions, use tools and decline harmful requests.</p>
+    <p>Three consequences shape everything you build:</p>
+    <ul>
+      <li><strong>Knowledge cutoff:</strong> the model knows nothing that happened after its training data was collected.</li>
+      <li><strong>No private knowledge:</strong> it has never seen your company's documents, database or tickets.</li>
+      <li><strong>No learning while you use it:</strong> the weights are fixed. Anything it needs for a task has to be in the request itself.</li>
+    </ul>
+    <p>Getting the right information into the request is most of AI engineering, and it's what retrieval (RAG) and tools are for.</p>
+  </article>
+
+  <article class="stop" id="lm-tokens">
+    <h3>Tokens and the context window</h3>
+    <p>Models don't read characters or words; they read <strong>tokens</strong>, which are word fragments. Limits and prices are all measured in tokens. The <strong>context window</strong> is the maximum number of tokens one request can hold, and everything counts toward it: your instructions, the conversation so far, tool definitions, any documents you include, and the answer being generated.</p>
+    <figure class="fig">
+      <div class="fig-scroll"><svg xml:space="preserve" viewBox="0 0 640 206" role="img" aria-label="A sentence split into tokens, and a context window bar divided into system prompt, history, tools, documents and room for the answer.">
+        <text class="t-mut" x="10" y="20">A sentence split into tokens (illustrative)</text>
+        <rect class="d-soft" x="10" y="32" width="65" height="34" rx="6"/><text class="t-mono" x="42" y="54" text-anchor="middle">Token</text>
+        <rect class="d-soft" x="81" y="32" width="83" height="34" rx="6"/><text class="t-mono" x="122" y="54" text-anchor="middle">ization</text>
+        <rect class="d-soft" x="170" y="32" width="83" height="34" rx="6"/><text class="t-mono" x="211" y="54" text-anchor="middle">␣splits</text>
+        <rect class="d-soft" x="259" y="32" width="65" height="34" rx="6"/><text class="t-mono" x="291" y="54" text-anchor="middle">␣text</text>
+        <rect class="d-soft" x="330" y="32" width="65" height="34" rx="6"/><text class="t-mono" x="362" y="54" text-anchor="middle">␣into</text>
+        <rect class="d-soft" x="401" y="32" width="83" height="34" rx="6"/><text class="t-mono" x="442" y="54" text-anchor="middle">␣pieces</text>
+        <rect class="d-soft" x="490" y="32" width="29" height="34" rx="6"/><text class="t-mono" x="504" y="54" text-anchor="middle">.</text>
+        <text class="t-mut" x="10" y="108">The context window: everything in one request has to fit</text>
+        <rect class="d-soft" x="10" y="120" width="80" height="40"/><text x="50" y="145" text-anchor="middle">System</text>
+        <rect class="d-soft" x="90" y="120" width="170" height="40"/><text x="175" y="145" text-anchor="middle">Conversation so far</text>
+        <rect class="d-soft" x="260" y="120" width="90" height="40"/><text x="305" y="145" text-anchor="middle">Tools</text>
+        <rect class="d-soft" x="350" y="120" width="160" height="40"/><text x="430" y="145" text-anchor="middle">Retrieved documents</text>
+        <rect class="d-box d-dash" x="510" y="120" width="120" height="40"/><text x="570" y="145" text-anchor="middle">The answer</text>
+        <text class="t-mut" x="260" y="186" text-anchor="middle">input tokens</text>
+        <text class="t-mut" x="570" y="186" text-anchor="middle">output tokens</text>
+      </svg></div>
+      <figcaption>Each model family splits text differently, and context window sizes vary by model. The API can count tokens for you before you send a request.</figcaption>
+    </figure>
+    <p>Two practical effects: long conversations and big documents cost more on every request, because the whole context is sent each time; and anything that doesn't fit simply isn't seen by the model.</p>
+  </article>
+
+  <article class="stop" id="lm-behaviour">
+    <h3>Strengths and failure modes</h3>
+    <p>LLMs are strong at language: explaining, summarizing, rewriting, extracting structure from messy text, writing code and reasoning over material you provide. Their typical failures are just as predictable:</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Failure</th><th>What it looks like</th><th>How engineering handles it</th></tr></thead>
+      <tbody>
+        <tr><td>Hallucination</td><td>Confident, specific and wrong: invented function names, numbers or sources</td><td>Give it sources (RAG), ask for citations, verify in code, measure with evals</td></tr>
+        <tr><td>Non-determinism</td><td>The same request can produce different answers</td><td>Structured outputs, tests over many examples instead of one</td></tr>
+        <tr><td>Statelessness</td><td>No memory between requests</td><td>Your app resends the relevant history every time</td></tr>
+        <tr><td>Prompt sensitivity</td><td>Small wording changes shift results</td><td>Clear, structured prompts; evals catch regressions</td></tr>
+        <tr><td>Prompt injection</td><td>Instructions hidden in documents or tool results get followed</td><td>Treat inputs as data, limit tool permissions, require approval for actions</td></tr>
+      </tbody>
+    </table></div>
+  </article>
+
+  <article class="stop" id="lm-prompts">
+    <h3>Prompts</h3>
+    <p>A request has a <strong>system prompt</strong> (who the model is, rules, output format) and a list of <strong>messages</strong> alternating between the user and the assistant. Good prompts read like a brief to a smart colleague who has no context: say what you want, give the material, say what to do when unsure.</p>
+    <div class="code"><pre><code class="language-plaintext">System: You are a support assistant for the FastAPI documentation.
+Answer only from the provided documentation and cite the page.
+If the answer isn't in it, say you don't know.
+
+User:
+&lt;docs&gt;
+...passages found by search...
+&lt;/docs&gt;
+&lt;question&gt;How do I run code after the response is sent?&lt;/question&gt;</code></pre></div>
+    <p>Tags like <code>&lt;docs&gt;</code> have no special meaning to the API; they just make it unambiguous where material starts and ends. Examples of good answers, included in the prompt, are one of the most effective ways to steer output.</p>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="claude" data-title="Claude and the API" data-line="l2">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>Claude and the API</h2>
+    <p class="goal">Which model you'll use, what a request and response look like, and how accounts, keys and billing work.</p>
+  </div>
+
+  <article class="stop" id="cl-claude">
+    <h3>Claude and Anthropic</h3>
+    <p>Claude is a family of LLMs built by Anthropic. People use it through apps (claude.ai on web, desktop and mobile), through coding tools like Claude Code, and through the <strong>Claude API</strong>, which is how your own software talks to it. The AI engineering guide uses the API.</p>
+    <p>Models come in tiers that trade capability against speed and cost: <strong>Haiku</strong> is the fastest and cheapest, <strong>Sonnet</strong> balances capability and cost, and <strong>Opus</strong> is the most capable of the three. Anthropic's newer Mythos tier sits above Opus. Model names and versions change regularly, so treat the models overview in the Claude docs as the source of truth, and keep model ids in configuration rather than code.</p>
+    <div class="note"><p><strong>Choosing a model:</strong> start with a mid-tier model, then move individual jobs down to a cheaper one (or up) when your evals show it makes no difference (or a real one).</p></div>
+  </article>
+
+  <article class="stop" id="cl-api">
+    <h3>Anatomy of an API call</h3>
+    <p>Every interaction is one HTTPS request to the Messages API with your API key. You send the model id, an output limit, an optional system prompt and the messages; you get back content blocks, a stop reason and token usage. The official SDKs (Python, TypeScript and others) wrap this in function calls.</p>
+    <figure class="fig">
+      <div class="fig-scroll"><svg xml:space="preserve" viewBox="0 0 640 240" role="img" aria-label="A request with model, max_tokens, system and messages goes to the Claude API, which returns a response with content blocks, stop_reason and usage.">
+        <text x="12" y="20" style="font-weight:700">Request</text>
+        <rect class="d-box" x="10" y="30" width="240" height="196" rx="10"/>
+        <text class="t-mono" x="26" y="60">model: "claude-sonnet-5"</text>
+        <text class="t-mono" x="26" y="84">max_tokens: 1024</text>
+        <text class="t-mono" x="26" y="108">system: "You answer…"</text>
+        <text class="t-mono" x="26" y="132">messages: [</text>
+        <text class="t-mono" x="26" y="156">  {role: "user",</text>
+        <text class="t-mono" x="26" y="180">   content: "…"}</text>
+        <text class="t-mono" x="26" y="204">]</text>
+        <text class="t-mut" x="320" y="96" text-anchor="middle">HTTPS + API key</text>
+        <line class="d-ln" x1="250" y1="127" x2="266" y2="127" marker-end="url(#arr)"/>
+        <rect class="d-acc" x="268" y="105" width="104" height="44" rx="22"/>
+        <text class="t-inv" x="320" y="132" text-anchor="middle">Claude API</text>
+        <line class="d-ln" x1="372" y1="127" x2="388" y2="127" marker-end="url(#arr)"/>
+        <text x="392" y="20" style="font-weight:700">Response</text>
+        <rect class="d-box" x="390" y="30" width="240" height="196" rx="10"/>
+        <text class="t-mono" x="406" y="60">content: [</text>
+        <text class="t-mono" x="406" y="84">  {type: "text",</text>
+        <text class="t-mono" x="406" y="108">   text: "Depends…"}</text>
+        <text class="t-mono" x="406" y="132">]</text>
+        <text class="t-mono" x="406" y="156">stop_reason: "end_turn"</text>
+        <text class="t-mono" x="406" y="180">usage: {input_tokens: 31,</text>
+        <text class="t-mono" x="406" y="204">        output_tokens: 118}</text>
+      </svg></div>
+      <figcaption>The response content is a list because a reply can mix text with other blocks, such as a request to call one of your tools.</figcaption>
+    </figure>
+  </article>
+
+  <article class="stop" id="cl-account">
+    <h3>Accounts, keys and cost</h3>
+    <ul>
+      <li><strong>API keys live in the Claude Console</strong> at platform.claude.com, under Settings → API keys. A key starts with <code>sk-ant-</code> and is shown only once, when you create it.</li>
+      <li><strong>API billing is separate from a claude.ai subscription.</strong> A Pro or Max plan doesn't include API usage; the API is paid per token from its own balance.</li>
+      <li><strong>Keys are secrets.</strong> Keep them in a <code>.env</code> file that's in <code>.gitignore</code>. A key pushed to a public repository gets found and abused quickly; if that happens, delete it in the Console and create a new one.</li>
+      <li><strong>Set limits.</strong> Keys belong to a workspace, and workspaces can have their own limits. Use a small budget while learning.</li>
+      <li><strong>Embeddings need a second account.</strong> Anthropic doesn't offer an embedding model; the guide uses Voyage AI, which has its own key and a free allowance (check its pricing page).</li>
+    </ul>
+  </article>
+
+  <article class="stop" id="cl-others">
+    <h3>Other providers</h3>
+    <p>OpenAI, Google (Gemini) and others offer similar APIs, and open-weight models can run on your own hardware with tools like Ollama. The concepts in this crash course apply to all of them; request formats and feature names differ in the details. Frameworks such as LangChain hide some of those differences behind one interface, which is one of their main selling points.</p>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="beyond" data-title="Structured output and tools" data-line="l3">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>Structured output and tools</h2>
+    <p class="goal">How a text generator becomes something your code can rely on, and how it can act on the world through your functions.</p>
+  </div>
+
+  <article class="stop" id="tu-structured">
+    <h3>Structured output</h3>
+    <p>Models produce text, but programs need data. With <strong>structured outputs</strong> you supply a JSON schema, usually generated from a Pydantic model, and generation is constrained so the reply always matches it. Instead of parsing prose, you get a validated object: a page summary with <code>title</code>, <code>summary</code> and <code>topics</code>, or a verdict with <code>grounded: true</code>.</p>
+    <p>This is the bridge between a language model and ordinary code: once output has a type, you can store it, test it and branch on it.</p>
+  </article>
+
+  <article class="stop" id="tu-tools">
+    <h3>Tool use</h3>
+    <p>A model can't do anything by itself: it can't search your database, call an API or read a file. <strong>Tool use</strong> lets you describe functions (a name, what it does, what arguments it takes). When the model decides it needs one, it replies with a request to call it. Your code runs the function and sends back the result, and the model continues with that information.</p>
+    <figure class="fig">
+      <div class="fig-scroll"><svg xml:space="preserve" viewBox="0 0 640 330" role="img" aria-label="Sequence: your app sends a question and tool definitions to Claude; Claude requests a tool call; your app runs the function and returns the result to Claude; Claude writes the final answer.">
+        <rect class="d-box" x="40" y="10" width="140" height="36" rx="8"/><text x="110" y="33" text-anchor="middle">Your app</text>
+        <rect class="d-acc" x="260" y="10" width="140" height="36" rx="8"/><text class="t-inv" x="330" y="33" text-anchor="middle">Claude</text>
+        <rect class="d-box" x="480" y="10" width="140" height="36" rx="8"/><text x="550" y="33" text-anchor="middle">Your function</text>
+        <line class="d-ln d-dash" x1="110" y1="46" x2="110" y2="322"/>
+        <line class="d-ln d-dash" x1="330" y1="46" x2="330" y2="322"/>
+        <line class="d-ln d-dash" x1="550" y1="46" x2="550" y2="322"/>
+        <text class="t-mut" x="220" y="78" text-anchor="middle">1  question + tool definitions</text>
+        <line class="d-ln" x1="112" y1="86" x2="326" y2="86" marker-end="url(#arr)"/>
+        <text class="t-mut" x="220" y="126" text-anchor="middle">2  "call search_docs('testing')"</text>
+        <line class="d-ln" x1="328" y1="134" x2="114" y2="134" marker-end="url(#arr)"/>
+        <text class="t-mut" x="452" y="172" text-anchor="middle">3  your code decides to run it</text>
+        <line class="d-ln" x1="112" y1="180" x2="546" y2="180" marker-end="url(#arr)"/>
+        <text class="t-mut" x="440" y="214" text-anchor="middle">4  return value</text>
+        <line class="d-ln" x1="548" y1="222" x2="114" y2="222" marker-end="url(#arr)"/>
+        <text class="t-mut" x="220" y="258" text-anchor="middle">5  tool result</text>
+        <line class="d-ln" x1="112" y1="266" x2="326" y2="266" marker-end="url(#arr)"/>
+        <text class="t-mut" x="220" y="300" text-anchor="middle">6  answer using the result</text>
+        <line class="d-ln" x1="328" y1="308" x2="114" y2="308" marker-end="url(#arr)"/>
+      </svg></div>
+      <figcaption>Steps 2 to 5 can repeat several times before the final answer. Repeating this loop, with the model choosing the steps, is what an agent is.</figcaption>
+    </figure>
+    <div class="note"><p><strong>The model never executes anything.</strong> It only asks. Your code decides whether to run the call and with what permissions, which is exactly where safety checks belong.</p></div>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="vectors" data-title="Embeddings and vector search" data-line="l4">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>Embeddings and vector search</h2>
+    <p class="goal">How software finds text by meaning instead of by exact words, and what a vector database is for.</p>
+  </div>
+
+  <article class="stop" id="vx-embeddings">
+    <h3>Embeddings</h3>
+    <p>An <strong>embedding model</strong> turns a piece of text into a fixed-length list of numbers, a <strong>vector</strong> (for example 1024 numbers). It's trained so that texts with similar meaning get vectors that point in similar directions, even when they share no words: "How do I test my API?" lands near a passage about <code>TestClient</code>.</p>
+    <figure class="fig">
+      <div class="fig-scroll"><svg xml:space="preserve" viewBox="0 0 640 300" role="img" aria-label="A question becomes a vector. In a two-dimensional sketch, the question sits near passages about testing and far from passages about databases and async.">
+        <text class="t-mono" x="10" y="26">"How do I test my API?"</text>
+        <line class="d-ln" x1="212" y1="21" x2="252" y2="21" marker-end="url(#arr)"/>
+        <text class="t-mono" x="260" y="26">[0.021, -0.113, 0.087, …]  1024 numbers</text>
+        <rect class="d-box" x="10" y="45" width="620" height="245" rx="10"/>
+        <ellipse class="d-ring" cx="185" cy="148" rx="135" ry="76"/>
+        <text class="t-mut" x="60" y="66">nearby vectors = similar meaning</text>
+        <circle class="d-pt" cx="150" cy="100" r="5"/><text class="t-mut" x="158" y="104">pytest fixtures</text>
+        <circle class="d-pt" cx="185" cy="160" r="5"/><text class="t-mut" x="193" y="164">TestClient</text>
+        <circle class="d-pt" cx="140" cy="185" r="5"/><text class="t-mut" x="148" y="189">dependency_overrides</text>
+        <circle class="d-ptacc" cx="230" cy="120" r="8"/><text x="242" y="124" style="font-weight:700">How do I test my API?</text>
+        <circle class="d-pt" cx="430" cy="95" r="5"/><text class="t-mut" x="438" y="99">SQLAlchemy session</text>
+        <circle class="d-pt" cx="480" cy="140" r="5"/><text class="t-mut" x="488" y="144">Alembic migration</text>
+        <circle class="d-pt" cx="440" cy="175" r="5"/><text class="t-mut" x="448" y="179">connection pool</text>
+        <circle class="d-pt" cx="300" cy="245" r="5"/><text class="t-mut" x="308" y="249">event loop</text>
+        <circle class="d-pt" cx="390" cy="265" r="5"/><text class="t-mut" x="398" y="269">await</text>
+        <circle class="d-pt" cx="170" cy="255" r="5"/><text class="t-mut" x="178" y="259">asyncio.gather</text>
+      </svg></div>
+      <figcaption>A two-dimensional sketch. Real embeddings have hundreds or thousands of dimensions, but the idea holds: closeness means similar meaning.</figcaption>
+    </figure>
+    <p>Embedding models are separate from chat models: smaller, cheaper, and they only produce vectors. The same model must embed both your documents and the incoming questions, or the vectors aren't comparable.</p>
+  </article>
+
+  <article class="stop" id="vx-similarity">
+    <h3>Measuring similarity</h3>
+    <p>The usual measure is <strong>cosine similarity</strong>: it compares the direction two vectors point in. 1 means the same direction (very similar), around 0 means unrelated. Distance is the flip side: smaller distance, more similar.</p>
+    <div class="code"><pre><code class="language-python">import math
+
+def cosine(a: list[float], b: list[float]) -&gt; float:
+    dot = sum(x * y for x, y in zip(a, b))
+    return dot / (math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b)))
+
+cosine([0.9, 0.1, 0.0], [0.8, 0.2, 0.1])   # 0.98: very similar
+cosine([0.9, 0.1, 0.0], [0.0, 0.2, 0.9])   # 0.02: unrelated</code></pre></div>
+    <p>Real vectors have about a thousand dimensions instead of three, but the arithmetic is the same.</p>
+  </article>
+
+  <article class="stop" id="vx-db">
+    <h3>Vector databases</h3>
+    <p>A vector database stores vectors next to their source text and metadata, and answers one question fast: <em>which stored vectors are closest to this one?</em> Comparing against every vector works for thousands of items but is too slow for millions, so vector databases build <strong>approximate nearest neighbour</strong> indexes (HNSW is the common one) that skip most comparisons in exchange for occasionally missing a close match.</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Option</th><th>What it is</th><th>Typical use</th></tr></thead>
+      <tbody>
+        <tr><td>pgvector</td><td>An extension that adds vector columns and indexes to Postgres</td><td>Vectors next to your app data; the guide's default</td></tr>
+        <tr><td>Qdrant</td><td>Open-source dedicated vector database; self-hosted or cloud</td><td>Larger scale, heavy filtering; covered as the alternative</td></tr>
+        <tr><td>Pinecone</td><td>Fully managed vector database service</td><td>Teams that want no infrastructure to run</td></tr>
+        <tr><td>Chroma</td><td>Lightweight open-source vector store</td><td>Prototypes and notebooks</td></tr>
+      </tbody>
+    </table></div>
+  </article>
+
+  <article class="stop" id="vx-keyword">
+    <h3>Keyword search still matters</h3>
+    <p>Vector search finds meaning but can miss exact strings: a class name like <code>BackgroundTasks</code>, an error code, a version number. Classic full-text search is the opposite. Production systems usually run both and merge the results, which is called <strong>hybrid search</strong>. Postgres has full-text search built in, so pgvector plus Postgres covers both.</p>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="rag" data-title="Retrieval-augmented generation" data-line="l5">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>Retrieval-augmented generation</h2>
+    <p class="goal">The most common pattern in AI engineering: find the relevant material first, then have the model answer from it.</p>
+  </div>
+
+  <article class="stop" id="rg-why">
+    <h3>Why RAG exists</h3>
+    <p>Your model doesn't know your documents, its knowledge has a cutoff, and it fills gaps with plausible guesses. There are three ways to give it your knowledge:</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Approach</th><th>Trade-off</th></tr></thead>
+      <tbody>
+        <tr><td>Put everything in the prompt</td><td>Simple, but limited by the context window, and you pay for every token on every request</td></tr>
+        <tr><td>Fine-tune a model on your data</td><td>Expensive, slow to update, and poor at recalling exact facts</td></tr>
+        <tr><td>Retrieve the relevant passages per question (RAG)</td><td>Cheap to update (re-index), answers can cite sources; quality depends on retrieval</td></tr>
+      </tbody>
+    </table></div>
+  </article>
+
+  <article class="stop" id="rg-flow">
+    <h3>The two pipelines</h3>
+    <p>RAG is two separate flows. <strong>Ingestion</strong> runs ahead of time: split documents into chunks, embed each chunk, store the vectors. <strong>Answering</strong> runs per question: embed the question, find the nearest chunks, and give them to the model with instructions to answer only from them and cite them.</p>
+    <figure class="fig">
+      <div class="fig-scroll"><svg xml:space="preserve" viewBox="0 0 820 262" role="img" aria-label="Ingest pipeline: docs, chunk, embed, vector store. Answer pipeline: question, embed, search the vector store, top passages, Claude writes a cited answer.">
+        <text x="20" y="20" style="font-weight:700">Ingest: once, and when documents change</text>
+        <rect class="d-box" x="20" y="30" width="100" height="42" rx="8"/><text x="70" y="56" text-anchor="middle">Docs</text>
+        <line class="d-ln" x1="120" y1="51" x2="148" y2="51" marker-end="url(#arr)"/>
+        <rect class="d-box" x="150" y="30" width="100" height="42" rx="8"/><text x="200" y="56" text-anchor="middle">Chunk</text>
+        <line class="d-ln" x1="250" y1="51" x2="278" y2="51" marker-end="url(#arr)"/>
+        <rect class="d-box" x="280" y="30" width="100" height="42" rx="8"/><text x="330" y="56" text-anchor="middle">Embed</text>
+        <line class="d-ln" x1="380" y1="51" x2="408" y2="51" marker-end="url(#arr)"/>
+        <rect class="d-soft" x="410" y="30" width="140" height="42" rx="8"/><text x="480" y="56" text-anchor="middle">Vector store</text>
+        <line class="d-ln" x1="480" y1="72" x2="480" y2="178" marker-end="url(#arr)"/>
+        <text class="t-mut" x="490" y="130">closest chunks</text>
+        <text x="20" y="170" style="font-weight:700">Answer: per question</text>
+        <text class="t-mut" x="750" y="170" text-anchor="middle">writes a cited answer</text>
+        <rect class="d-box" x="20" y="180" width="100" height="42" rx="8"/><text x="70" y="206" text-anchor="middle">Question</text>
+        <line class="d-ln" x1="120" y1="201" x2="148" y2="201" marker-end="url(#arr)"/>
+        <rect class="d-box" x="150" y="180" width="100" height="42" rx="8"/><text x="200" y="206" text-anchor="middle">Embed</text>
+        <line class="d-ln" x1="250" y1="201" x2="428" y2="201" marker-end="url(#arr)"/>
+        <rect class="d-box" x="430" y="180" width="100" height="42" rx="8"/><text x="480" y="206" text-anchor="middle">Search</text>
+        <line class="d-ln" x1="530" y1="201" x2="558" y2="201" marker-end="url(#arr)"/>
+        <rect class="d-box" x="560" y="180" width="110" height="42" rx="8"/><text x="615" y="206" text-anchor="middle">Top passages</text>
+        <line class="d-ln" x1="670" y1="201" x2="698" y2="201" marker-end="url(#arr)"/>
+        <rect class="d-acc" x="700" y="180" width="100" height="42" rx="8"/><text class="t-inv" x="750" y="206" text-anchor="middle">Claude</text>
+        <path class="d-ln d-dash" d="M 70 222 V 248 H 750 V 226" marker-end="url(#arr)"/>
+        <text class="t-mut" x="410" y="243" text-anchor="middle">the question travels with the passages</text>
+      </svg></div>
+      <figcaption>Both pipelines must use the same embedding model. Real systems add hybrid search and a reranking step between search and the model.</figcaption>
+    </figure>
+  </article>
+
+  <article class="stop" id="rg-fail">
+    <h3>Where RAG goes wrong</h3>
+    <ul>
+      <li><strong>Bad chunks:</strong> pieces too small to make sense alone, or too big to be specific.</li>
+      <li><strong>Wrong passages retrieved:</strong> the answer exists but search didn't find it. No prompt can fix this.</li>
+      <li><strong>Right passages, wrong answer:</strong> the model ignores them or adds claims they don't support.</li>
+      <li><strong>Stale index:</strong> documents changed but weren't re-ingested.</li>
+    </ul>
+    <p>Each failure has a different fix, so you need to measure retrieval and answers separately. That measurement is what evals are, covered next.</p>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="systems" data-title="Agents, MCP and evals" data-line="l6">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>Agents, MCP and evals</h2>
+    <p class="goal">The vocabulary for systems that take multiple steps, connect to other tools, and need testing that works when outputs vary.</p>
+  </div>
+
+  <article class="stop" id="ag-agents">
+    <h3>Workflows and agents</h3>
+    <p>Anthropic draws a useful line between two kinds of systems. In a <strong>workflow</strong>, your code decides the steps and the model fills them in. In an <strong>agent</strong>, the model decides the steps itself, calling tools in a loop until it judges the task done.</p>
+    <figure class="fig">
+      <div class="fig-scroll"><svg xml:space="preserve" viewBox="0 0 640 272" role="img" aria-label="Workflow: retrieve, rerank, answer, check citations in a fixed order. Agent: Claude calls tools, gets results back in a loop, and produces an answer when done.">
+        <text x="20" y="22" style="font-weight:700">Workflow: your code fixes the path</text>
+        <rect class="d-box" x="20" y="36" width="120" height="42" rx="8"/><text x="80" y="62" text-anchor="middle">Retrieve</text>
+        <line class="d-ln" x1="140" y1="57" x2="173" y2="57" marker-end="url(#arr)"/>
+        <rect class="d-box" x="175" y="36" width="120" height="42" rx="8"/><text x="235" y="62" text-anchor="middle">Rerank</text>
+        <line class="d-ln" x1="295" y1="57" x2="328" y2="57" marker-end="url(#arr)"/>
+        <rect class="d-acc" x="330" y="36" width="120" height="42" rx="8"/><text class="t-inv" x="390" y="62" text-anchor="middle">Answer</text>
+        <line class="d-ln" x1="450" y1="57" x2="483" y2="57" marker-end="url(#arr)"/>
+        <rect class="d-box" x="485" y="36" width="135" height="42" rx="8"/><text x="552" y="62" text-anchor="middle">Check citations</text>
+        <text x="20" y="142" style="font-weight:700">Agent: the model chooses each next step</text>
+        <rect class="d-box" x="20" y="180" width="170" height="54" rx="8"/><text x="105" y="203" text-anchor="middle">Tools</text><text class="t-mut" x="105" y="222" text-anchor="middle">search, read, save</text>
+        <rect class="d-acc" x="270" y="180" width="120" height="54" rx="8"/><text class="t-inv" x="330" y="212" text-anchor="middle">Claude</text>
+        <rect class="d-box" x="480" y="180" width="140" height="54" rx="8"/><text x="550" y="212" text-anchor="middle">Answer</text>
+        <path class="d-ln" d="M 272 190 C 245 158, 218 158, 192 188" marker-end="url(#arr)"/>
+        <text class="t-mut" x="231" y="160" text-anchor="middle">tool call</text>
+        <path class="d-ln" d="M 192 226 C 218 258, 245 258, 270 228" marker-end="url(#arr)"/>
+        <text class="t-mut" x="231" y="266" text-anchor="middle">result</text>
+        <line class="d-ln" x1="390" y1="207" x2="478" y2="207" marker-end="url(#arr)"/>
+        <text class="t-mut" x="434" y="198" text-anchor="middle">when done</text>
+      </svg></div>
+      <figcaption>Workflows are predictable, cheaper and easier to test. Agents handle open-ended tasks at the cost of latency, tokens and predictability.</figcaption>
+    </figure>
+    <p>Anthropic's guidance is to start with the simplest thing that works, often a single well-prompted call, and add steps or autonomy only when it measurably helps.</p>
+  </article>
+
+  <article class="stop" id="ag-mcp">
+    <h3>MCP: a standard plug for tools</h3>
+    <p>Without a standard, every AI app needs custom code for every tool it connects to. The <strong>Model Context Protocol</strong> is an open standard that fixes this: write a tool integration once as an <strong>MCP server</strong>, and any compatible <strong>host</strong> can use it. The official docs compare it to USB-C: one connector for many devices.</p>
+    <figure class="fig">
+      <div class="fig-scroll"><svg xml:space="preserve" viewBox="0 0 640 260" role="img" aria-label="A host application contains several MCP clients, each connected to one MCP server: your docs assistant, a GitHub server and a database server.">
+        <rect class="d-soft" x="10" y="20" width="220" height="225" rx="12"/>
+        <text x="24" y="44" style="font-weight:700">Host</text>
+        <text class="t-mut" x="24" y="62">Claude app, IDE or your agent</text>
+        <rect class="d-box" x="34" y="80" width="180" height="36" rx="18"/><text x="124" y="103" text-anchor="middle">MCP client</text>
+        <rect class="d-box" x="34" y="135" width="180" height="36" rx="18"/><text x="124" y="158" text-anchor="middle">MCP client</text>
+        <rect class="d-box" x="34" y="190" width="180" height="36" rx="18"/><text x="124" y="213" text-anchor="middle">MCP client</text>
+        <line class="d-ln" x1="214" y1="98" x2="386" y2="98" marker-end="url(#arr)"/><text class="t-mut" x="300" y="90" text-anchor="middle">stdio</text>
+        <line class="d-ln" x1="214" y1="153" x2="386" y2="153" marker-end="url(#arr)"/><text class="t-mut" x="300" y="145" text-anchor="middle">Streamable HTTP</text>
+        <line class="d-ln" x1="214" y1="208" x2="386" y2="208" marker-end="url(#arr)"/><text class="t-mut" x="300" y="200" text-anchor="middle">Streamable HTTP</text>
+        <rect class="d-acc" x="390" y="78" width="240" height="40" rx="8"/><text class="t-inv" x="510" y="103" text-anchor="middle">Your docs assistant server</text>
+        <rect class="d-box" x="390" y="133" width="240" height="40" rx="8"/><text x="510" y="158" text-anchor="middle">GitHub server</text>
+        <rect class="d-box" x="390" y="188" width="240" height="40" rx="8"/><text x="510" y="213" text-anchor="middle">Database server</text>
+      </svg></div>
+      <figcaption>Each client holds one connection to one server. stdio is for servers the host launches locally; Streamable HTTP is for servers running elsewhere.</figcaption>
+    </figure>
+    <p>A server can offer <strong>tools</strong> (actions the model calls), <strong>resources</strong> (data the app can read) and <strong>prompts</strong> (templates the user picks). If you know REST APIs, think of an MCP server as an API designed to be discovered and called by AI applications.</p>
+  </article>
+
+  <article class="stop" id="ag-evals">
+    <h3>Evals: testing when outputs vary</h3>
+    <p>A unit test expects one exact output. LLM systems give varied outputs, so testing them means running a fixed set of realistic questions, the <strong>golden dataset</strong>, and scoring the results:</p>
+    <ul>
+      <li><strong>Deterministic checks</strong> where possible: did the right page come back, does the answer mention the required term, are citations valid.</li>
+      <li><strong>LLM-as-judge</strong> for what rules can't check, such as "is every claim supported by the sources?". A second model grades the answer against a rubric.</li>
+      <li><strong>Scores over time:</strong> the point isn't pass or fail on one run, it's seeing whether a change to the prompt, model or chunking made things better or worse.</li>
+    </ul>
+  </article>
+
+  <article class="stop" id="ag-frameworks">
+    <h3>Frameworks</h3>
+    <p>Everything above can be built with a provider SDK and ordinary code, and the AI engineering guide does that first so you see the mechanics. Frameworks package common patterns:</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Framework</th><th>What it gives you</th></tr></thead>
+      <tbody>
+        <tr><td>LangChain</td><td>A common interface across model providers, prebuilt agents, many integrations</td></tr>
+        <tr><td>LangGraph</td><td>Workflows as graphs with shared state, pauses for human approval, resumable runs</td></tr>
+        <tr><td>LlamaIndex</td><td>Data-focused tooling for loading, indexing and querying documents</td></tr>
+      </tbody>
+    </table></div>
+    <p>The trade-off is always the same: less code to write, but another layer between you and the model to understand and debug.</p>
+  </article>
+</section>
+
+<!-- =================================================================== -->
+<section class="part" id="toolbox" data-title="Your toolbox and setup" data-line="l7">
+  <div class="part-head">
+    <p class="part-num"></p>
+    <h2>Your toolbox and setup</h2>
+    <p class="goal">Every tool the AI engineering guide uses, where it fits, and what to install before you start.</p>
+  </div>
+
+  <article class="stop" id="tb-map">
+    <h3>The stack at a glance</h3>
+    <figure class="fig">
+      <div class="fig-scroll"><svg xml:space="preserve" viewBox="0 0 712 290" role="img" aria-label="Stack by layer: app, models, data, orchestration, integration, quality and operations, with the tools used at each layer.">
+<text x="10" y="35" style="font-weight:700">Your app</text>
+<rect class="d-soft" x="150" y="12" width="88" height="34" rx="17"/><text x="194" y="34" text-anchor="middle">FastAPI</text>
+<rect class="d-soft" x="246" y="12" width="96" height="34" rx="17"/><text x="294" y="34" text-anchor="middle">Pydantic</text>
+<text x="10" y="81" style="font-weight:700">Models</text>
+<rect class="d-soft" x="150" y="58" width="213" height="34" rx="17"/><text x="256" y="80" text-anchor="middle">Claude (Anthropic SDK)</text>
+<rect class="d-soft" x="371" y="58" width="171" height="34" rx="17"/><text x="456" y="80" text-anchor="middle">Voyage embeddings</text>
+<rect class="d-soft" x="550" y="58" width="154" height="34" rx="17"/><text x="627" y="80" text-anchor="middle">Voyage reranker</text>
+<text x="10" y="127" style="font-weight:700">Data</text>
+<rect class="d-soft" x="150" y="104" width="188" height="34" rx="17"/><text x="244" y="126" text-anchor="middle">Postgres + pgvector</text>
+<rect class="d-soft" x="346" y="104" width="72" height="34" rx="17"/><text x="382" y="126" text-anchor="middle">Redis</text>
+<rect class="d-box" x="426" y="104" width="196" height="34" rx="17"/><text x="524" y="126" text-anchor="middle">Qdrant (alternative)</text>
+<text x="10" y="173" style="font-weight:700">Orchestration</text>
+<rect class="d-soft" x="150" y="150" width="138" height="34" rx="17"/><text x="219" y="172" text-anchor="middle">Your own code</text>
+<rect class="d-box" x="296" y="150" width="105" height="34" rx="17"/><text x="348" y="172" text-anchor="middle">LangChain</text>
+<rect class="d-box" x="409" y="150" width="105" height="34" rx="17"/><text x="462" y="172" text-anchor="middle">LangGraph</text>
+<text x="10" y="219" style="font-weight:700">Integration</text>
+<rect class="d-soft" x="150" y="196" width="146" height="34" rx="17"/><text x="223" y="218" text-anchor="middle">MCP Python SDK</text>
+<text x="10" y="265" style="font-weight:700">Quality and ops</text>
+<rect class="d-soft" x="150" y="242" width="130" height="34" rx="17"/><text x="215" y="264" text-anchor="middle">pytest evals</text>
+<rect class="d-box" x="288" y="242" width="171" height="34" rx="17"/><text x="374" y="264" text-anchor="middle">Ragas or DeepEval</text>
+<rect class="d-box" x="467" y="242" width="96" height="34" rx="17"/><text x="515" y="264" text-anchor="middle">Langfuse</text>
+      </svg></div>
+      <figcaption>Filled chips are the main path; outlined chips are alternatives or later additions covered in the guide.</figcaption>
+    </figure>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tool</th><th>What it is</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td>Anthropic Python SDK</td><td>Official client for the Claude API</td><td>Every model call: messages, streaming, structured output, tools</td></tr>
+        <tr><td>Voyage AI</td><td>Embedding and reranking models (Anthropic's recommended embeddings provider)</td><td>Turning chunks and questions into vectors; reordering search results</td></tr>
+        <tr><td>pgvector</td><td>Postgres extension for vector columns and indexes</td><td>Storing and searching embeddings next to your data</td></tr>
+        <tr><td>Qdrant</td><td>Dedicated vector database</td><td>The comparison stop: when a separate vector store is worth it</td></tr>
+        <tr><td>Redis</td><td>In-memory store</td><td>Caching answers, rate limits and budgets</td></tr>
+        <tr><td>MCP Python SDK</td><td>Official library for MCP servers and clients</td><td>Exposing the assistant to any MCP host</td></tr>
+        <tr><td>LangChain, LangGraph</td><td>Agent and workflow frameworks</td><td>Rebuilding the hand-written agent to compare approaches</td></tr>
+        <tr><td>pytest, Ragas, DeepEval</td><td>Test runner and eval libraries</td><td>Measuring retrieval and answer quality</td></tr>
+        <tr><td>Langfuse</td><td>Open-source tracing and eval platform</td><td>Seeing every step and cost of a request in production</td></tr>
+      </tbody>
+    </table></div>
+  </article>
+
+  <article class="stop" id="tb-setup">
+    <h3>Before you start</h3>
+    <ol>
+      <li>Python 3.12 or newer and <code>uv</code>, plus the FastAPI, Postgres and pytest basics from the first guide.</li>
+      <li>Docker, to run Postgres (with pgvector) and Redis locally.</li>
+      <li>A Claude API key from the Claude Console, a small prepaid balance, and a spending limit.</li>
+      <li>A Voyage AI API key.</li>
+      <li>A corpus to work with. FastAPI's documentation is Markdown in its GitHub repository: <code>git clone https://github.com/fastapi/fastapi</code>, then look in <code>docs/en/docs</code>.</li>
+    </ol>
+    <p>Then check your key works with one call (put <code>ANTHROPIC_API_KEY</code> in your environment or <code>.env</code> first):</p>
+    <div class="code"><pre><code class="language-python"># hello_claude.py   run with: uv run --with anthropic python hello_claude.py
+import anthropic
+
+client = anthropic.Anthropic()
+response = client.messages.create(
+    model="claude-haiku-4-5-20251001",
+    max_tokens=100,
+    messages=[{"role": "user", "content": "Say hello in five words."}],
+)
+print(next(block.text for block in response.content if block.type == "text"))
+print(response.usage)</code></pre></div>
+    <p>If it prints a greeting and a token count, you're ready for the AI engineering guide.</p>
+  </article>
+
+  <article class="stop" id="tb-glossary">
+    <h3>Glossary</h3>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>Token</td><td>A word fragment; the unit models read, write and bill by</td></tr>
+        <tr><td>Context window</td><td>The most tokens one request can hold, input and output together</td></tr>
+        <tr><td>System prompt</td><td>Instructions that set the model's role, rules and output format</td></tr>
+        <tr><td>Hallucination</td><td>A fluent answer that isn't supported by facts or sources</td></tr>
+        <tr><td>Structured output</td><td>Generation constrained to a JSON schema, so replies parse into typed objects</td></tr>
+        <tr><td>Tool use</td><td>The model requests a call to one of your functions; your code runs it</td></tr>
+        <tr><td>Embedding</td><td>A vector representing a text's meaning</td></tr>
+        <tr><td>Cosine similarity</td><td>How closely two vectors point in the same direction; 1 is identical</td></tr>
+        <tr><td>ANN index, HNSW</td><td>Approximate nearest-neighbour index: fast similarity search that may miss a few matches</td></tr>
+        <tr><td>Chunk</td><td>A passage of a document, the unit that gets embedded and retrieved</td></tr>
+        <tr><td>RAG</td><td>Retrieval-augmented generation: retrieve relevant passages, then answer from them</td></tr>
+        <tr><td>Hybrid search</td><td>Vector search and keyword search combined</td></tr>
+        <tr><td>Reranker</td><td>A model that reorders search results by relevance to the question</td></tr>
+        <tr><td>Workflow, agent</td><td>Code-directed steps versus model-directed steps</td></tr>
+        <tr><td>MCP host, client, server</td><td>The AI app, its connection, and the program exposing tools and data</td></tr>
+        <tr><td>Eval, golden dataset</td><td>A scored test run over a fixed set of realistic cases</td></tr>
+        <tr><td>LLM-as-judge</td><td>Using a model to grade another model's output against a rubric</td></tr>
+        <tr><td>Prompt injection</td><td>Instructions hidden in input data that the model might follow</td></tr>
+        <tr><td>Prompt caching</td><td>Reusing an already-processed prompt prefix to cut cost and latency</td></tr>
+      </tbody>
+    </table></div>
+  </article>
+</section>
+
+      <footer>
+        <p><a href="../">All guides</a>. Before this: <a href="../python-fastapi/">Python to FastAPI</a>. Next: <a href="../ai-engineering/">AI engineering: the build route</a>.</p>
+        <p>Sources worth reading: <a href="https://platform.claude.com/docs" target="_blank" rel="noopener">Claude API docs</a>, <a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Building effective agents</a>, <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener">Model Context Protocol</a>, <a href="https://docs.voyageai.com/" target="_blank" rel="noopener">Voyage AI docs</a>, <a href="https://github.com/pgvector/pgvector" target="_blank" rel="noopener">pgvector</a>.</p>
+      </footer>
+
+    </div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function () {
+  const KEY = "aifound:done:v1";
+  let done = new Set();
+  try { done = new Set(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify([...done])); } catch (e) {} };
+
+  const parts = [...document.querySelectorAll("section.part")];
+  const railLines = document.getElementById("rail-lines");
+  const route = document.getElementById("route");
+  const topbarBar = document.getElementById("topbar-bar");
+  const allStops = [];
+
+  parts.forEach((part, i) => {
+    if (part.dataset.color) part.style.setProperty("--line", part.dataset.color);
+    const color = getComputedStyle(part).getPropertyValue("--line").trim();
+    const num = i + 1;
+    const title = part.dataset.title || part.querySelector("h2").textContent;
+    const numEl = part.querySelector(".part-num");
+    if (numEl) numEl.textContent = "Part " + num;
+    const stops = [...part.querySelectorAll("article.stop")];
+
+    // rail
+    const li = document.createElement("li");
+    li.className = "line";
+    li.style.setProperty("--line", color);
+    const head = document.createElement("a");
+    head.className = "line-name"; head.href = "#" + part.id;
+    const badge = document.createElement("span");
+    badge.className = "line-num"; badge.textContent = num;
+    head.append(badge, document.createTextNode(title));
+    const ol = document.createElement("ol");
+    ol.className = "stations";
+    li.append(head, ol);
+
+    stops.forEach((stop) => {
+      allStops.push(stop);
+      stop.dataset.stop = stop.id;
+      const a = document.createElement("a");
+      a.href = "#" + stop.id; a.dataset.stop = stop.id;
+      const dot = document.createElement("span"); dot.className = "dot";
+      const label = document.createElement("span"); label.textContent = stop.querySelector("h3").textContent;
+      a.append(dot, label);
+      const sli = document.createElement("li"); sli.append(a); ol.append(sli);
+
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "done-btn"; btn.dataset.stop = stop.id;
+      btn.addEventListener("click", () => {
+        done.has(stop.id) ? done.delete(stop.id) : done.add(stop.id);
+        save(); render();
+      });
+      stop.append(btn);
+    });
+    railLines.append(li);
+
+    // hero route
+    const r = document.createElement("li");
+    r.style.setProperty("--line", color);
+    r.dataset.part = part.id;
+    r.innerHTML = '<a href="#' + part.id + '"><span class="stn"></span><span class="r-title"></span><span class="r-count"></span></a>';
+    r.querySelector(".stn").textContent = num;
+    r.querySelector(".r-title").textContent = title;
+    route.append(r);
+
+    // mobile progress segment
+    const seg = document.createElement("span");
+    seg.className = "seg"; seg.style.setProperty("--line", color); seg.dataset.part = part.id;
+    seg.innerHTML = "<i></i>";
+    topbarBar.append(seg);
+  });
+
+  function render() {
+    document.querySelectorAll("[data-stop]").forEach((el) => {
+      const isDone = done.has(el.dataset.stop);
+      el.classList.toggle("is-done", isDone);
+      if (el.classList.contains("done-btn")) {
+        el.setAttribute("aria-pressed", String(isDone));
+        el.textContent = isDone ? "Done" : "Mark done";
+      }
+    });
+    parts.forEach((part) => {
+      const stops = [...part.querySelectorAll("article.stop")];
+      const n = stops.filter((s) => done.has(s.id)).length;
+      const r = route.querySelector('[data-part="' + part.id + '"]');
+      r.querySelector(".r-count").textContent = n + " of " + stops.length + " stops";
+      r.querySelector(".stn").classList.toggle("full", n === stops.length && n > 0);
+      topbarBar.querySelector('[data-part="' + part.id + '"] i').style.width = (stops.length ? (100 * n / stops.length) : 0) + "%";
+    });
+    const total = allStops.length;
+    const d = allStops.filter((s) => done.has(s.id)).length;
+    document.getElementById("rail-progress").textContent = d + " of " + total + " stops done";
+    document.getElementById("topbar-count").textContent = d + "/" + total;
+  }
+  render();
+
+  // current stop highlight
+  const railLinks = new Map([...document.querySelectorAll(".stations a")].map((a) => [a.dataset.stop, a]));
+  let current = null;
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        if (current) current.classList.remove("is-current");
+        current = railLinks.get(e.target.id);
+        if (current) current.classList.add("is-current");
+      }
+    });
+  }, { rootMargin: "-20% 0px -70% 0px" });
+  allStops.forEach((s) => io.observe(s));
+
+  // mobile drawer
+  const openBtn = document.getElementById("open-rail");
+  const setOpen = (open) => {
+    document.body.classList.toggle("rail-open", open);
+    openBtn.setAttribute("aria-expanded", String(open));
+  };
+  openBtn.addEventListener("click", () => setOpen(!document.body.classList.contains("rail-open")));
+  document.getElementById("rail").addEventListener("click", (e) => { if (e.target.closest("a")) setOpen(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
+  document.addEventListener("click", (e) => {
+    if (document.body.classList.contains("rail-open") && !e.target.closest("#rail") && !e.target.closest("#open-rail")) setOpen(false);
+  });
+
+  // code: highlight + copy
+  if (window.hljs) { try { hljs.highlightAll(); } catch (e) {} }
+  document.querySelectorAll(".code").forEach((wrap) => {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "copy"; btn.textContent = "Copy";
+    btn.addEventListener("click", async () => {
+      const text = wrap.querySelector("code").innerText;
+      let ok = false;
+      try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = text; document.body.append(ta); ta.select();
+          ok = document.execCommand("copy"); ta.remove();
+        } catch (e2) {}
+      }
+      btn.textContent = ok ? "Copied" : "Copy failed";
+      setTimeout(() => (btn.textContent = "Copy"), 1400);
+    });
+    wrap.append(btn);
+  });
+})();
+</script>
+</body>
+</html>
