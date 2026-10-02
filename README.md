@@ -16,7 +16,7 @@ Read them in order. Route 3 assumes the FastAPI, Postgres and pytest skills from
 
 - Open the live site, or open `index.html` locally in a browser.
 - Mark stops as done to track progress. Progress is stored in your browser's `localStorage` and never leaves your machine.
-- Code examples are building blocks. The capstones deliberately contain no solution code.
+- Code examples are building blocks. The Python to FastAPI capstone shows its code step by step; the AI engineering capstone contains no solution code.
 
 ## Structure
 

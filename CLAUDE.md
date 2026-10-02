@@ -124,7 +124,7 @@ These come from direct feedback. Follow them in every edit.
 1. **Concise, one idea and one working example per stop.** Explanations are a few sentences. No filler.
 2. **Don't frame content around DSA** or the learner's background. Write for any capable developer.
 3. **Cross-references by name, never by part number.** Write "see Responses and errors in the FastAPI part", not "Part 3". Numbers are generated and shift when parts are added.
-4. **Capstones contain no solution code.** They have a spec, milestones and hints only. Building blocks elsewhere are fine.
+4. **Capstone solution code.** Route 1's capstone (URL shortener) deliberately shows the code as it stands at the end of each step, at the author's request; it was run against tests before publishing, so re-test it if you change it. Other capstones have a spec, milestones and hints only, unless the author asks otherwise. Building blocks elsewhere are fine.
 5. **Route 2 (foundations) is concepts first.** Explain with prose, tables and diagrams; code only where it makes an idea concrete (the cosine example) and in the setup stop. Anything build-oriented belongs in route 3.
 6. **Raw first, framework second** (route 3). Teach the mechanism with the provider SDK or plain code, then show the framework version (LangChain, LangGraph, Qdrant) and the trade-off.
 7. **Consistency inside a guide.** One pattern per concern: for example, services own database transactions; the in-memory store is `dict[str, str]`; routes stay thin. Don't introduce a second pattern without replacing the first.
@@ -258,6 +258,6 @@ When asked to change content:
 
 - Read the relevant part of the guide first, and match its existing patterns and style.
 - Research version-sensitive facts against official docs before writing them; say what was checked and what wasn't.
-- Keep the content rules above, especially: no part numbers in prose, stable stop ids, no solution code in capstones.
+- Keep the content rules above, especially: no part numbers in prose, stable stop ids, and capstone code only where rule 4 allows it.
 - Run the checks section before declaring the change done.
 - Update this file when you add a guide, a colour, a convention, or re-verify facts.
