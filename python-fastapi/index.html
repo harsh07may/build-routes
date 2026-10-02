@@ -1052,7 +1052,7 @@ async def delete_link(session: AsyncSession, cache: redis.Redis, code: str) -&gt
   <div class="part-head">
     <p class="part-num"></p>
     <h2>Capstone: build the URL shortener</h2>
-    <p class="goal">A spec and a sequence of milestones. No solution code here, on purpose: everything you need is in the stops above.</p>
+    <p class="goal">A spec, then seven steps. Each step lists what to do and shows the code as it stands at the end of it, so you can compare against your own.</p>
   </div>
 
   <article class="stop" id="cap-spec">
@@ -1070,16 +1070,1273 @@ async def delete_link(session: AsyncSession, cache: redis.Redis, code: str) -&gt
   </article>
 
   <article class="stop" id="cap-milestones">
-    <h3>Milestones</h3>
+    <h3>How to work through it</h3>
+    <p>Build in seven steps, in order. Each step ends with a check you can run, and each one reuses a stop from above. Try it yourself first, then compare with the code shown. The code is one possible solution, not the only one. Finish a step, commit, and only then move on.</p>
     <ol>
-      <li>In-memory version: a <code>dict</code> for storage, all five endpoints working in <code>/docs</code>.</li>
-      <li>Validation: <code>LinkCreate</code> / <code>LinkOut</code> schemas, custom codes, reserved words, domain exceptions mapped to status codes.</li>
-      <li>Structure: split into routers, services, schemas and config. Add pytest tests for every endpoint.</li>
-      <li>Persistence: Postgres (or SQLite) through SQLAlchemy, with an Alembic migration. Same tests, now with a test database.</li>
-      <li>Caching: cache-aside on redirects, cache invalidation on delete.</li>
-      <li>Hardening: rate limiting on creation, expiring links (<code>expires_at</code>), an API key for write endpoints.</li>
-      <li>Ship it: a Dockerfile for the app, added to <code>compose.yaml</code>, running with <code>fastapi run</code>.</li>
+      <li>In-memory version</li>
+      <li>Validation and errors</li>
+      <li>Structure and tests</li>
+      <li>Persistence</li>
+      <li>Caching</li>
+      <li>Hardening</li>
+      <li>Ship it</li>
     </ol>
+  </article>
+
+  <article class="stop" id="cap-step-1">
+    <h3>Step 1: in-memory version</h3>
+    <p>Get all five endpoints answering before you think about structure. One file, one <code>dict[str, str]</code> mapping code to URL.</p>
+    <ol>
+      <li>Set up the project as in Project setup with uv, add <code>fastapi[standard]</code>, and start the server as in Your first app.</li>
+      <li>Write the five routes from the spec. Use path and body parameters as in Path, query and body.</li>
+      <li>For now generate codes with <code>secrets</code> (see Design hints) and return the short URL built from the request's base URL.</li>
+      <li>Open <code>/docs</code> and call every endpoint by hand, including the failure cases.</li>
+    </ol>
+    <p>The whole app at this point:</p>
+    <div class="code"><pre><code class="language-python"># main.py
+import secrets
+import string
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, HttpUrl
+
+app = FastAPI(title="Shortener")
+
+store: dict[str, str] = {}      # code -&gt; target URL
+clicks: dict[str, int] = {}     # code -&gt; click count
+ALPHABET = string.ascii_letters + string.digits
+
+
+class LinkCreate(BaseModel):
+    url: HttpUrl
+    code: str | None = None
+
+
+def make_code(length: int = 6) -&gt; str:
+    return "".join(secrets.choice(ALPHABET) for _ in range(length))
+
+
+@app.get("/health")
+async def health() -&gt; dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.post("/links", status_code=201)
+async def create_link(payload: LinkCreate, request: Request) -&gt; dict:
+    code = payload.code or make_code()
+    if code in store:
+        raise HTTPException(status_code=409, detail="code already taken")
+    store[code] = str(payload.url)
+    clicks[code] = 0
+    return {"code": code, "short_url": f"{request.base_url}{code}"}
+
+
+@app.get("/links/{code}")
+async def get_link(code: str) -&gt; dict:
+    if code not in store:
+        raise HTTPException(status_code=404, detail="link not found")
+    return {"code": code, "target_url": store[code], "clicks": clicks[code]}
+
+
+@app.delete("/links/{code}", status_code=204)
+async def delete_link(code: str) -&gt; None:
+    if code not in store:
+        raise HTTPException(status_code=404, detail="link not found")
+    del store[code]
+    del clicks[code]
+
+
+@app.get("/{code}")                      # catch-all: keep it last
+async def follow(code: str) -&gt; RedirectResponse:
+    if code not in store:
+        raise HTTPException(status_code=404, detail="link not found")
+    clicks[code] += 1
+    return RedirectResponse(store[code], status_code=302)</code></pre></div>
+    <div class="note"><p><strong>Done when:</strong> every row of the spec table returns the right status code from <code>/docs</code>, even though the data vanishes on restart.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-2">
+    <h3>Step 2: validation and errors</h3>
+    <p>Replace loose inputs and ad hoc <code>HTTPException</code> calls with schemas and domain exceptions.</p>
+    <ol>
+      <li>Write <code>LinkCreate</code> and <code>LinkOut</code> with Pydantic, as in Pydantic v2: <code>HttpUrl</code> for the target, an optional custom code with a length and pattern constraint.</li>
+      <li>Add a validator that rejects reserved codes (see Design hints).</li>
+      <li>Define exceptions such as <code>CodeTaken</code> and <code>LinkNotFound</code>, following Exceptions, and map them to <code>409</code> and <code>404</code> with exception handlers, as in Responses and errors.</li>
+      <li>Set <code>response_model</code> and <code>status_code</code> on each route so the docs match the spec.</li>
+    </ol>
+    <p>Still one file. The new parts are the schemas, the two exceptions with their handlers, and <code>get_target</code>, which every route shares:</p>
+    <div class="code"><pre><code class="language-python"># main.py
+import secrets
+import string
+from typing import Annotated
+
+from fastapi import FastAPI, Path, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel, Field, HttpUrl, field_validator
+
+app = FastAPI(title="Shortener")
+
+store: dict[str, str] = {}      # code -&gt; target URL
+clicks: dict[str, int] = {}     # code -&gt; click count
+ALPHABET = string.ascii_letters + string.digits
+RESERVED = {"docs", "redoc", "openapi.json", "links", "health"}
+
+Code = Annotated[str, Path(min_length=4, max_length=16)]
+
+
+# --- errors ---------------------------------------------------------------
+class LinkNotFound(Exception): ...
+class CodeTaken(Exception): ...
+
+
+@app.exception_handler(LinkNotFound)
+async def on_not_found(request: Request, exc: LinkNotFound) -&gt; JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": f"no link '{exc}'"})
+
+
+@app.exception_handler(CodeTaken)
+async def on_taken(request: Request, exc: CodeTaken) -&gt; JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": f"code '{exc}' is taken"})
+
+
+# --- schemas --------------------------------------------------------------
+class LinkCreate(BaseModel):
+    url: HttpUrl
+    code: str | None = Field(default=None, min_length=4, max_length=16,
+                             pattern=r"^[A-Za-z0-9_-]+$")
+
+    @field_validator("code")
+    @classmethod
+    def not_reserved(cls, v: str | None) -&gt; str | None:
+        if v in RESERVED:
+            raise ValueError("this code is reserved")
+        return v
+
+
+class LinkOut(BaseModel):
+    code: str
+    short_url: str
+    target_url: str
+    clicks: int = 0
+
+
+# --- logic ----------------------------------------------------------------
+def make_code(length: int = 6) -&gt; str:
+    return "".join(secrets.choice(ALPHABET) for _ in range(length))
+
+
+def get_target(code: str) -&gt; str:
+    if code not in store:
+        raise LinkNotFound(code)
+    return store[code]
+
+
+# --- routes ---------------------------------------------------------------
+@app.get("/health")
+async def health() -&gt; dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.post("/links", status_code=201)
+async def create_link(payload: LinkCreate, request: Request) -&gt; LinkOut:
+    code = payload.code or make_code()
+    if code in store:
+        raise CodeTaken(code)
+    store[code] = str(payload.url)
+    clicks[code] = 0
+    return LinkOut(code=code, short_url=f"{request.base_url}{code}",
+                   target_url=store[code])
+
+
+@app.get("/links/{code}")
+async def read_link(code: Code, request: Request) -&gt; LinkOut:
+    target = get_target(code)
+    return LinkOut(code=code, short_url=f"{request.base_url}{code}",
+                   target_url=target, clicks=clicks[code])
+
+
+@app.delete("/links/{code}", status_code=204)
+async def delete_link(code: Code) -&gt; None:
+    get_target(code)
+    del store[code]
+    del clicks[code]
+
+
+@app.get("/{code}")                      # catch-all: keep it last
+async def follow(code: Code) -&gt; RedirectResponse:
+    target = get_target(code)
+    clicks[code] += 1
+    return RedirectResponse(target, status_code=302)</code></pre></div>
+    <div class="note"><p><strong>Done when:</strong> a bad URL gives <code>422</code>, a duplicate custom code gives <code>409</code>, and routes contain no <code>raise HTTPException</code>.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-3">
+    <h3>Step 3: structure and tests</h3>
+    <p>Split the file by responsibility and lock the behavior in with tests before touching the database.</p>
+    <ol>
+      <li>Follow Project structure with APIRouter: <code>routers/</code> for HTTP, <code>services/</code> for logic, <code>schemas/</code>, and a <code>config.py</code> using pydantic-settings (see Configuration with pydantic-settings).</li>
+      <li>Keep routes thin. They parse input, call a service and return the result.</li>
+      <li>Inject the store through <code>Depends</code> (see Dependency injection with Depends) so tests can swap it.</li>
+      <li>Write tests with <code>TestClient</code> as in Testing endpoints and Testing with pytest: one happy path and one failure per endpoint, using fixtures and dependency overrides.</li>
+    </ol>
+    <p>The layout:</p>
+    <div class="code"><pre><code class="language-plaintext">app/
+├── __init__.py          # empty; one in every folder under app/
+├── main.py
+├── codes.py             # make_code
+├── errors.py            # LinkNotFound, CodeTaken
+├── schemas.py           # LinkCreate, LinkOut
+├── store.py             # the in-memory store and its dependency
+├── core/config.py
+├── services/links.py
+└── routers/
+    ├── links.py
+    └── redirect.py
+tests/
+├── conftest.py
+└── test_links.py</code></pre></div>
+    <p>The code moves out of <code>main.py</code> mostly unchanged. The new idea is that services take the store as an argument and are <code>async</code> already, so the persistence step swaps the argument and keeps every signature.</p>
+    <div class="code"><pre><code class="language-python"># app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
+    base_url: str = "http://localhost:8000"
+
+
+settings = Settings()</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/errors.py
+class LinkNotFound(Exception): ...
+class CodeTaken(Exception): ...</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/codes.py
+import secrets
+import string
+
+ALPHABET = string.ascii_letters + string.digits
+
+
+def make_code(length: int = 6) -&gt; str:
+    return "".join(secrets.choice(ALPHABET) for _ in range(length))</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/schemas.py
+from pydantic import BaseModel, Field, HttpUrl, field_validator
+
+RESERVED = {"docs", "redoc", "openapi.json", "links", "health"}
+
+
+class LinkCreate(BaseModel):
+    url: HttpUrl
+    code: str | None = Field(default=None, min_length=4, max_length=16,
+                             pattern=r"^[A-Za-z0-9_-]+$")
+
+    @field_validator("code")
+    @classmethod
+    def not_reserved(cls, v: str | None) -&gt; str | None:
+        if v in RESERVED:
+            raise ValueError("this code is reserved")
+        return v
+
+
+class LinkOut(BaseModel):
+    code: str
+    short_url: str
+    target_url: str
+    clicks: int = 0</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/store.py
+from dataclasses import dataclass
+from typing import Annotated
+
+from fastapi import Depends
+
+
+@dataclass
+class LinkRecord:
+    code: str
+    target_url: str
+    clicks: int = 0
+
+
+Store = dict[str, LinkRecord]
+_store: Store = {}
+
+
+def get_store() -&gt; Store:
+    return _store
+
+
+StoreDep = Annotated[Store, Depends(get_store)]</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/services/links.py
+# No FastAPI imports here.
+from app.codes import make_code
+from app.errors import CodeTaken, LinkNotFound
+from app.store import LinkRecord, Store
+
+
+async def create_link(store: Store, target_url: str, code: str | None = None) -&gt; LinkRecord:
+    code = code or make_code()
+    if code in store:
+        raise CodeTaken(code)
+    store[code] = LinkRecord(code=code, target_url=target_url)
+    return store[code]
+
+
+async def get_link(store: Store, code: str) -&gt; LinkRecord:
+    if code not in store:
+        raise LinkNotFound(code)
+    return store[code]
+
+
+async def resolve(store: Store, code: str) -&gt; str:
+    return (await get_link(store, code)).target_url
+
+
+async def record_click(store: Store, code: str) -&gt; None:
+    store[code].clicks += 1
+
+
+async def delete_link(store: Store, code: str) -&gt; None:
+    await get_link(store, code)
+    del store[code]</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/routers/links.py
+from typing import Annotated
+
+from fastapi import APIRouter, Path
+
+from app.core.config import settings
+from app.schemas import LinkCreate, LinkOut
+from app.services import links as svc
+from app.store import StoreDep
+
+router = APIRouter(prefix="/links", tags=["links"])
+
+Code = Annotated[str, Path(min_length=4, max_length=16)]
+
+
+def to_out(link) -&gt; LinkOut:
+    return LinkOut(code=link.code, short_url=f"{settings.base_url}/{link.code}",
+                   target_url=link.target_url, clicks=link.clicks)
+
+
+@router.post("", status_code=201)
+async def create(payload: LinkCreate, store: StoreDep) -&gt; LinkOut:
+    return to_out(await svc.create_link(store, str(payload.url), payload.code))
+
+
+@router.get("/{code}")
+async def read(code: Code, store: StoreDep) -&gt; LinkOut:
+    return to_out(await svc.get_link(store, code))
+
+
+@router.delete("/{code}", status_code=204)
+async def remove(code: Code, store: StoreDep) -&gt; None:
+    await svc.delete_link(store, code)</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/routers/redirect.py
+from fastapi import APIRouter
+from fastapi.responses import RedirectResponse
+
+from app.routers.links import Code
+from app.services import links as svc
+from app.store import StoreDep
+
+router = APIRouter()
+
+
+@router.get("/{code}")
+async def follow(code: Code, store: StoreDep) -&gt; RedirectResponse:
+    target = await svc.resolve(store, code)
+    await svc.record_click(store, code)
+    return RedirectResponse(target, status_code=302)</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/main.py
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from app.errors import CodeTaken, LinkNotFound
+from app.routers import links, redirect
+
+app = FastAPI(title="Shortener")
+
+
+@app.exception_handler(LinkNotFound)
+async def on_not_found(request: Request, exc: LinkNotFound) -&gt; JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": f"no link '{exc}'"})
+
+
+@app.exception_handler(CodeTaken)
+async def on_taken(request: Request, exc: CodeTaken) -&gt; JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": f"code '{exc}' is taken"})
+
+
+@app.get("/health")
+async def health() -&gt; dict[str, str]:
+    return {"status": "ok"}
+
+
+app.include_router(links.router)
+app.include_router(redirect.router)      # catch-all /{code} goes last</code></pre></div>
+    <div class="code"><pre><code class="language-python"># tests/conftest.py
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.store import get_store
+
+
+@pytest.fixture
+def client():
+    fresh: dict = {}
+    app.dependency_overrides[get_store] = lambda: fresh    # same dict for the whole test
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()</code></pre></div>
+    <div class="code"><pre><code class="language-python"># tests/test_links.py
+BODY = {"url": "https://example.com", "code": "abcd"}
+
+
+def test_health(client):
+    assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_create_and_read(client):
+    r = client.post("/links", json=BODY)
+    assert r.status_code == 201
+    assert r.json()["short_url"].endswith("/abcd")
+    assert client.get("/links/abcd").json()["clicks"] == 0
+
+
+def test_duplicate_code_is_409(client):
+    client.post("/links", json=BODY)
+    assert client.post("/links", json=BODY).status_code == 409
+
+
+def test_bad_input_is_422(client):
+    assert client.post("/links", json={"url": "not a url"}).status_code == 422
+    assert client.post("/links", json={**BODY, "code": "docs"}).status_code == 422
+
+
+def test_redirect_counts_clicks(client):
+    client.post("/links", json=BODY)
+    r = client.get("/abcd", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"] == "https://example.com/"
+    assert client.get("/links/abcd").json()["clicks"] == 1
+
+
+def test_unknown_code_is_404(client):
+    assert client.get("/nope1").status_code == 404
+    assert client.get("/links/nope1").status_code == 404
+
+
+def test_delete(client):
+    client.post("/links", json=BODY)
+    assert client.delete("/links/abcd").status_code == 204
+    assert client.delete("/links/abcd").status_code == 404</code></pre></div>
+    <p>Run them with <code>uv run pytest</code>.</p>
+    <div class="note"><p><strong>Done when:</strong> <code>pytest</code> passes, and you can change the internals of a service without editing a test.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-4">
+    <h3>Step 4: persistence</h3>
+    <p>Swap the dictionary for a database without changing the routes or the HTTP-level tests.</p>
+    <ol>
+      <li>Start Postgres and Redis as in Run Postgres and Redis locally.</li>
+      <li>Define a <code>Link</code> model with a unique indexed <code>code</code>, <code>url</code>, <code>clicks</code>, <code>created_at</code> and a nullable <code>expires_at</code> (see SQLAlchemy 2.0: engine, session, models).</li>
+      <li>Rewrite the service functions following Services own the transaction: the service commits, routes never touch the session. Turn a unique-constraint failure into <code>CodeTaken</code>.</li>
+      <li>Create the table with an Alembic migration (see Migrations with Alembic) instead of <code>create_all</code>.</li>
+      <li>Point the tests at a separate test database and make each test start clean.</li>
+    </ol>
+    <div class="code"><pre><code class="language-bash">docker compose up -d
+docker compose exec db createdb -U app shortener_test      # a separate database for tests
+uv run alembic init -t async migrations
+# edit migrations/env.py as in the Alembic stop, then:
+uv run alembic revision --autogenerate -m "create links"
+uv run alembic upgrade head</code></pre></div>
+    <div class="code"><pre><code class="language-ini"># .env
+DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/shortener</code></pre></div>
+    <p>Delete <code>app/store.py</code>. <code>schemas.py</code>, <code>errors.py</code>, <code>codes.py</code> and <code>tests/test_links.py</code> do not change, which is the point of the previous step. These files change:</p>
+    <div class="code"><pre><code class="language-python"># app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
+    database_url: str
+    test_database_url: str = "postgresql+asyncpg://app:app@localhost:5432/shortener_test"
+    base_url: str = "http://localhost:8000"
+
+
+settings = Settings()</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/db.py
+from collections.abc import AsyncIterator
+from typing import Annotated
+
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
+
+from app.core.config import settings
+
+engine = create_async_engine(settings.database_url)
+SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+async def get_session() -&gt; AsyncIterator[AsyncSession]:
+    async with SessionLocal() as session:
+        yield session
+
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/models.py
+from datetime import datetime
+
+from sqlalchemy import DateTime, String, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db import Base
+
+
+class Link(Base):
+    __tablename__ = "links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    target_url: Mapped[str] = mapped_column(String(2048))
+    clicks: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/services/links.py
+# No FastAPI imports here. Services own the transaction.
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.codes import make_code
+from app.errors import CodeTaken, LinkNotFound
+from app.models import Link
+
+
+async def create_link(session: AsyncSession, target_url: str, code: str | None = None) -&gt; Link:
+    link = Link(code=code or make_code(), target_url=target_url)
+    session.add(link)
+    try:
+        await session.commit()
+    except IntegrityError as e:              # unique constraint on code
+        await session.rollback()
+        raise CodeTaken(link.code) from e
+    await session.refresh(link)              # load server defaults (created_at)
+    return link
+
+
+async def get_link(session: AsyncSession, code: str) -&gt; Link:
+    link = await session.scalar(select(Link).where(Link.code == code))
+    if link is None:
+        raise LinkNotFound(code)
+    return link
+
+
+async def resolve(session: AsyncSession, code: str) -&gt; str:
+    return (await get_link(session, code)).target_url
+
+
+async def record_click(session: AsyncSession, code: str) -&gt; None:
+    # atomic increment in the database: no read-modify-write race
+    await session.execute(update(Link).where(Link.code == code).values(clicks=Link.clicks + 1))
+    await session.commit()
+
+
+async def delete_link(session: AsyncSession, code: str) -&gt; None:
+    link = await get_link(session, code)
+    await session.delete(link)
+    await session.commit()</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/routers/links.py
+from typing import Annotated
+
+from fastapi import APIRouter, Path
+
+from app.core.config import settings
+from app.db import SessionDep
+from app.models import Link
+from app.schemas import LinkCreate, LinkOut
+from app.services import links as svc
+
+router = APIRouter(prefix="/links", tags=["links"])
+
+Code = Annotated[str, Path(min_length=4, max_length=16)]
+
+
+def to_out(link: Link) -&gt; LinkOut:
+    return LinkOut(code=link.code, short_url=f"{settings.base_url}/{link.code}",
+                   target_url=link.target_url, clicks=link.clicks)
+
+
+@router.post("", status_code=201)
+async def create(payload: LinkCreate, session: SessionDep) -&gt; LinkOut:
+    return to_out(await svc.create_link(session, str(payload.url), payload.code))
+
+
+@router.get("/{code}")
+async def read(code: Code, session: SessionDep) -&gt; LinkOut:
+    return to_out(await svc.get_link(session, code))
+
+
+@router.delete("/{code}", status_code=204)
+async def remove(code: Code, session: SessionDep) -&gt; None:
+    await svc.delete_link(session, code)</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/routers/redirect.py
+from fastapi import APIRouter
+from fastapi.responses import RedirectResponse
+
+from app.db import SessionDep
+from app.routers.links import Code
+from app.services import links as svc
+
+router = APIRouter()
+
+
+@router.get("/{code}")
+async def follow(code: Code, session: SessionDep) -&gt; RedirectResponse:
+    target = await svc.resolve(session, code)
+    await svc.record_click(session, code)
+    return RedirectResponse(target, status_code=302)</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/main.py
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from app.db import engine
+from app.errors import CodeTaken, LinkNotFound
+from app.routers import links, redirect
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await engine.dispose()
+
+
+app = FastAPI(title="Shortener", lifespan=lifespan)
+
+
+@app.exception_handler(LinkNotFound)
+async def on_not_found(request: Request, exc: LinkNotFound) -&gt; JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": f"no link '{exc}'"})
+
+
+@app.exception_handler(CodeTaken)
+async def on_taken(request: Request, exc: CodeTaken) -&gt; JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": f"code '{exc}' is taken"})
+
+
+@app.get("/health")
+async def health() -&gt; dict[str, str]:
+    return {"status": "ok"}
+
+
+app.include_router(links.router)
+app.include_router(redirect.router)      # catch-all /{code} goes last</code></pre></div>
+    <div class="code"><pre><code class="language-python"># tests/conftest.py
+import asyncio
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+
+from app.core.config import settings
+from app.db import Base, get_session
+from app.main import app
+
+# NullPool: no connection is reused across event loops (pytest's and TestClient's).
+test_engine = create_async_engine(settings.test_database_url, poolclass=NullPool)
+TestSession = async_sessionmaker(test_engine, expire_on_commit=False)
+
+
+async def reset_tables() -&gt; None:
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+
+async def override_session():
+    async with TestSession() as session:
+        yield session
+
+
+@pytest.fixture
+def client():
+    asyncio.run(reset_tables())               # empty tables for every test
+    app.dependency_overrides[get_session] = override_session
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()</code></pre></div>
+    <div class="note"><p><strong>Why <code>NullPool</code> in tests:</strong> <code>TestClient</code> runs the app on its own event loop, and a pooled async connection created on a different loop fails when reused. The table reset uses <code>create_all</code> because tests need a clean schema, not migration history.</p></div>
+    <div class="note"><p><strong>Done when:</strong> the same tests from the previous step pass against Postgres, and links survive a restart.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-5">
+    <h3>Step 5: caching</h3>
+    <p>Make the hot path, the redirect, avoid the database.</p>
+    <ol>
+      <li>Connect Redis in the lifespan handler (see Lifespan, middleware and background tasks) and inject the client.</li>
+      <li>Apply Cache-aside to <code>GET /{code}</code>: look in Redis, fall back to the database, store the result with a TTL.</li>
+      <li>Delete the cache key in the delete service. Decide what a cache entry must never outlive, an expired link for example, and set its TTL accordingly.</li>
+      <li>Still count the click on a cache hit. Decide where that write happens, then see the click-counting hint.</li>
+    </ol>
+    <p>Redis was already listed in <code>compose.yaml</code>. <code>schemas.py</code>, <code>errors.py</code>, <code>codes.py</code> and <code>db.py</code> are unchanged; <code>cache.py</code> is new:</p>
+    <div class="code"><pre><code class="language-python"># app/cache.py
+from typing import Annotated
+
+import redis.asyncio as redis
+from fastapi import Depends, Request
+
+
+def get_redis(request: Request) -&gt; redis.Redis:
+    return request.app.state.redis
+
+
+RedisDep = Annotated[redis.Redis, Depends(get_redis)]</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
+    database_url: str
+    test_database_url: str = "postgresql+asyncpg://app:app@localhost:5432/shortener_test"
+    redis_url: str = "redis://localhost:6379/0"
+    test_redis_url: str = "redis://localhost:6379/15"
+    base_url: str = "http://localhost:8000"
+
+
+settings = Settings()</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/main.py
+from contextlib import asynccontextmanager
+
+import redis.asyncio as redis
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from app.core.config import settings
+from app.db import engine
+from app.errors import CodeTaken, LinkNotFound
+from app.routers import links, redirect
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
+    yield
+    await app.state.redis.aclose()
+    await engine.dispose()
+
+
+app = FastAPI(title="Shortener", lifespan=lifespan)
+
+
+@app.exception_handler(LinkNotFound)
+async def on_not_found(request: Request, exc: LinkNotFound) -&gt; JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": f"no link '{exc}'"})
+
+
+@app.exception_handler(CodeTaken)
+async def on_taken(request: Request, exc: CodeTaken) -&gt; JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": f"code '{exc}' is taken"})
+
+
+@app.get("/health")
+async def health() -&gt; dict[str, str]:
+    return {"status": "ok"}
+
+
+app.include_router(links.router)
+app.include_router(redirect.router)      # catch-all /{code} goes last</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/services/links.py
+# No FastAPI imports here. Services own the transaction.
+import redis.asyncio as redis
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.codes import make_code
+from app.errors import CodeTaken, LinkNotFound
+from app.models import Link
+
+
+async def create_link(session: AsyncSession, target_url: str, code: str | None = None) -&gt; Link:
+    link = Link(code=code or make_code(), target_url=target_url)
+    session.add(link)
+    try:
+        await session.commit()
+    except IntegrityError as e:              # unique constraint on code
+        await session.rollback()
+        raise CodeTaken(link.code) from e
+    await session.refresh(link)              # load server defaults (created_at)
+    return link
+
+
+async def get_link(session: AsyncSession, code: str) -&gt; Link:
+    link = await session.scalar(select(Link).where(Link.code == code))
+    if link is None:
+        raise LinkNotFound(code)
+    return link
+
+
+async def resolve(session: AsyncSession, cache: redis.Redis, code: str) -&gt; str:
+    if cached := await cache.get(f"link:{code}"):
+        return cached                                            # hit
+    link = await get_link(session, code)                         # miss: raises LinkNotFound
+    await cache.set(f"link:{code}", link.target_url, ex=86_400)  # fill
+    return link.target_url
+
+
+async def record_click(session: AsyncSession, code: str) -&gt; None:
+    # atomic increment in the database: no read-modify-write race
+    await session.execute(update(Link).where(Link.code == code).values(clicks=Link.clicks + 1))
+    await session.commit()
+
+
+async def delete_link(session: AsyncSession, cache: redis.Redis, code: str) -&gt; None:
+    link = await get_link(session, code)
+    await session.delete(link)
+    await session.commit()
+    await cache.delete(f"link:{code}")                           # invalidate after the commit</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/routers/links.py
+from typing import Annotated
+
+from fastapi import APIRouter, Path
+
+from app.core.config import settings
+from app.cache import RedisDep
+from app.db import SessionDep
+from app.models import Link
+from app.schemas import LinkCreate, LinkOut
+from app.services import links as svc
+
+router = APIRouter(prefix="/links", tags=["links"])
+
+Code = Annotated[str, Path(min_length=4, max_length=16)]
+
+
+def to_out(link: Link) -&gt; LinkOut:
+    return LinkOut(code=link.code, short_url=f"{settings.base_url}/{link.code}",
+                   target_url=link.target_url, clicks=link.clicks)
+
+
+@router.post("", status_code=201)
+async def create(payload: LinkCreate, session: SessionDep) -&gt; LinkOut:
+    return to_out(await svc.create_link(session, str(payload.url), payload.code))
+
+
+@router.get("/{code}")
+async def read(code: Code, session: SessionDep) -&gt; LinkOut:
+    return to_out(await svc.get_link(session, code))
+
+
+@router.delete("/{code}", status_code=204)
+async def remove(code: Code, session: SessionDep, cache: RedisDep) -&gt; None:
+    await svc.delete_link(session, cache, code)</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/routers/redirect.py
+from fastapi import APIRouter
+from fastapi.responses import RedirectResponse
+
+from app.cache import RedisDep
+from app.db import SessionDep
+from app.routers.links import Code
+from app.services import links as svc
+
+router = APIRouter()
+
+
+@router.get("/{code}")
+async def follow(code: Code, session: SessionDep, cache: RedisDep) -&gt; RedirectResponse:
+    target = await svc.resolve(session, cache, code)
+    await svc.record_click(session, code)
+    return RedirectResponse(target, status_code=302)</code></pre></div>
+    <div class="code"><pre><code class="language-python"># tests/conftest.py
+import asyncio
+
+import pytest
+import redis as redis_sync
+import redis.asyncio as redis
+from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+
+from app.cache import get_redis
+from app.core.config import settings
+from app.db import Base, get_session
+from app.main import app
+
+# NullPool: no connection is reused across event loops (pytest's and TestClient's).
+test_engine = create_async_engine(settings.test_database_url, poolclass=NullPool)
+TestSession = async_sessionmaker(test_engine, expire_on_commit=False)
+
+
+async def reset_tables() -&gt; None:
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+
+async def override_session():
+    async with TestSession() as session:
+        yield session
+
+
+async def override_redis():
+    r = redis.from_url(settings.test_redis_url, decode_responses=True)
+    try:
+        yield r
+    finally:
+        await r.aclose()
+
+
+@pytest.fixture
+def cache():                                  # sync client for assertions inside tests
+    r = redis_sync.Redis.from_url(settings.test_redis_url, decode_responses=True)
+    r.flushdb()
+    yield r
+    r.close()
+
+
+@pytest.fixture
+def client(cache):
+    asyncio.run(reset_tables())               # empty tables for every test
+    app.dependency_overrides[get_session] = override_session
+    app.dependency_overrides[get_redis] = override_redis
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()</code></pre></div>
+    <p>Add this test to <code>tests/test_links.py</code>:</p>
+    <div class="code"><pre><code class="language-python">def test_redirect_fills_cache_and_delete_clears_it(client, cache):
+    client.post("/links", json=BODY)
+    assert cache.get("link:abcd") is None
+    client.get("/abcd", follow_redirects=False)
+    assert cache.get("link:abcd") == "https://example.com/"
+    client.delete("/links/abcd")
+    assert cache.get("link:abcd") is None
+    assert client.get("/abcd").status_code == 404</code></pre></div>
+    <div class="note"><p><strong>What the cache saves:</strong> a hit skips the <code>SELECT</code>, but <code>record_click</code> still writes on every redirect. Moving that write to a Redis counter is the stretch goal in Design hints.</p></div>
+    <div class="note"><p><strong>Done when:</strong> a second redirect to the same code does not query Postgres (check with SQL logging or a counter in a test), and a deleted link returns <code>404</code> immediately.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-6">
+    <h3>Step 6: hardening</h3>
+    <p>Add the three protections a public service needs.</p>
+    <ol>
+      <li>Expiry: return <code>410</code> when <code>expires_at</code> has passed, using timezone-aware datetimes.</li>
+      <li>API key: put the check in a dependency and attach it to <code>POST</code> and <code>DELETE</code> only. Read the key from settings and compare with <code>secrets.compare_digest</code>.</li>
+      <li>Rate limiting: a fixed-window counter in Redis as described in Design hints, written as a dependency that returns <code>429</code>.</li>
+      <li>Add a test for each protection.</li>
+    </ol>
+    <p>New files are <code>security.py</code> and <code>ratelimit.py</code>. The rest add an exception, a field and two dependencies:</p>
+    <div class="code"><pre><code class="language-python"># app/security.py
+import secrets
+from typing import Annotated
+
+from fastapi import Header, HTTPException
+
+from app.core.config import settings
+
+
+async def require_api_key(x_api_key: Annotated[str | None, Header()] = None) -&gt; None:
+    expected = settings.api_key.encode()
+    if x_api_key is None or not secrets.compare_digest(x_api_key.encode(), expected):
+        raise HTTPException(status_code=401, detail="invalid API key")</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/ratelimit.py
+import time
+
+from fastapi import HTTPException, Request
+
+from app.cache import RedisDep
+from app.core.config import settings
+
+
+async def rate_limit(request: Request, cache: RedisDep) -&gt; None:
+    client = request.client.host if request.client else "unknown"
+    key = f"rl:{client}:{int(time.time() // 60)}"          # one counter per client per minute
+    async with cache.pipeline(transaction=True) as pipe:   # INCR and EXPIRE run together
+        pipe.incr(key)
+        pipe.expire(key, 60)
+        count, _ = await pipe.execute()
+    if count &gt; settings.rate_limit_per_minute:
+        raise HTTPException(status_code=429, detail="too many requests")</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
+    database_url: str
+    test_database_url: str = "postgresql+asyncpg://app:app@localhost:5432/shortener_test"
+    redis_url: str = "redis://localhost:6379/0"
+    test_redis_url: str = "redis://localhost:6379/15"
+    api_key: str = "change-me"
+    rate_limit_per_minute: int = 30
+    base_url: str = "http://localhost:8000"
+
+
+settings = Settings()</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/errors.py
+class LinkNotFound(Exception): ...
+class CodeTaken(Exception): ...
+class LinkExpired(Exception): ...</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/schemas.py
+from datetime import datetime, timezone
+
+from pydantic import AwareDatetime, BaseModel, Field, HttpUrl, field_validator
+
+RESERVED = {"docs", "redoc", "openapi.json", "links", "health"}
+
+
+class LinkCreate(BaseModel):
+    url: HttpUrl
+    code: str | None = Field(default=None, min_length=4, max_length=16,
+                             pattern=r"^[A-Za-z0-9_-]+$")
+    expires_at: AwareDatetime | None = None        # must carry a timezone
+
+    @field_validator("code")
+    @classmethod
+    def not_reserved(cls, v: str | None) -&gt; str | None:
+        if v in RESERVED:
+            raise ValueError("this code is reserved")
+        return v
+
+    @field_validator("expires_at")
+    @classmethod
+    def in_the_future(cls, v: datetime | None) -&gt; datetime | None:
+        if v is not None and v &lt;= datetime.now(timezone.utc):
+            raise ValueError("expires_at must be in the future")
+        return v
+
+
+class LinkOut(BaseModel):
+    code: str
+    short_url: str
+    target_url: str
+    clicks: int = 0
+    expires_at: datetime | None = None</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/services/links.py
+# No FastAPI imports here. Services own the transaction.
+from datetime import datetime, timezone
+
+import redis.asyncio as redis
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.codes import make_code
+from app.errors import CodeTaken, LinkExpired, LinkNotFound
+from app.models import Link
+
+
+async def create_link(session: AsyncSession, target_url: str, code: str | None = None,
+                      expires_at: datetime | None = None) -&gt; Link:
+    link = Link(code=code or make_code(), target_url=target_url, expires_at=expires_at)
+    session.add(link)
+    try:
+        await session.commit()
+    except IntegrityError as e:              # unique constraint on code
+        await session.rollback()
+        raise CodeTaken(link.code) from e
+    await session.refresh(link)              # load server defaults (created_at)
+    return link
+
+
+async def get_link(session: AsyncSession, code: str) -&gt; Link:
+    link = await session.scalar(select(Link).where(Link.code == code))
+    if link is None:
+        raise LinkNotFound(code)
+    return link
+
+
+async def resolve(session: AsyncSession, cache: redis.Redis, code: str) -&gt; str:
+    if cached := await cache.get(f"link:{code}"):
+        return cached                                            # hit
+    link = await get_link(session, code)                         # miss: raises LinkNotFound
+    ttl = 86_400
+    if link.expires_at is not None:
+        remaining = int((link.expires_at - datetime.now(timezone.utc)).total_seconds())
+        if remaining &lt;= 0:
+            raise LinkExpired(code)
+        ttl = min(ttl, remaining)                                # never outlive the link
+    await cache.set(f"link:{code}", link.target_url, ex=ttl)     # fill
+    return link.target_url
+
+
+async def record_click(session: AsyncSession, code: str) -&gt; None:
+    # atomic increment in the database: no read-modify-write race
+    await session.execute(update(Link).where(Link.code == code).values(clicks=Link.clicks + 1))
+    await session.commit()
+
+
+async def delete_link(session: AsyncSession, cache: redis.Redis, code: str) -&gt; None:
+    link = await get_link(session, code)
+    await session.delete(link)
+    await session.commit()
+    await cache.delete(f"link:{code}")                           # invalidate after the commit</code></pre></div>
+    <div class="code"><pre><code class="language-python"># app/routers/links.py
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Path
+
+from app.core.config import settings
+from app.cache import RedisDep
+from app.db import SessionDep
+from app.models import Link
+from app.ratelimit import rate_limit
+from app.schemas import LinkCreate, LinkOut
+from app.security import require_api_key
+from app.services import links as svc
+
+router = APIRouter(prefix="/links", tags=["links"])
+
+Code = Annotated[str, Path(min_length=4, max_length=16)]
+
+
+def to_out(link: Link) -&gt; LinkOut:
+    return LinkOut(code=link.code, short_url=f"{settings.base_url}/{link.code}",
+                   target_url=link.target_url, clicks=link.clicks, expires_at=link.expires_at)
+
+
+@router.post("", status_code=201,
+             dependencies=[Depends(require_api_key), Depends(rate_limit)])
+async def create(payload: LinkCreate, session: SessionDep) -&gt; LinkOut:
+    return to_out(await svc.create_link(session, str(payload.url), payload.code,
+                                            payload.expires_at))
+
+
+@router.get("/{code}")
+async def read(code: Code, session: SessionDep) -&gt; LinkOut:
+    return to_out(await svc.get_link(session, code))
+
+
+@router.delete("/{code}", status_code=204, dependencies=[Depends(require_api_key)])
+async def remove(code: Code, session: SessionDep, cache: RedisDep) -&gt; None:
+    await svc.delete_link(session, cache, code)</code></pre></div>
+    <p>In <code>app/main.py</code>, import <code>LinkExpired</code> and add one more handler:</p>
+    <div class="code"><pre><code class="language-python"># app/main.py (addition)
+@app.exception_handler(LinkExpired)
+async def on_expired(request: Request, exc: LinkExpired) -&gt; JSONResponse:
+    return JSONResponse(status_code=410, content={"detail": f"link '{exc}' has expired"})</code></pre></div>
+    <p>In <code>tests/conftest.py</code>, send the key by default: <code>TestClient(app, headers={"x-api-key": settings.api_key})</code>. Then extend <code>tests/test_links.py</code>:</p>
+    <div class="code"><pre><code class="language-python"># tests/test_links.py (new imports at the top)
+import asyncio
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import update
+
+from app.core.config import settings
+from app.models import Link
+from tests.conftest import TestSession
+
+
+# ...existing tests...
+
+
+def test_write_endpoints_need_the_api_key(client):
+    bad = {"x-api-key": "wrong"}
+    assert client.post("/links", json=BODY, headers=bad).status_code == 401
+    assert client.delete("/links/abcd", headers=bad).status_code == 401
+
+
+def test_rate_limit(client, monkeypatch):
+    monkeypatch.setattr(settings, "rate_limit_per_minute", 2)
+    codes = ["aaaa", "bbbb", "cccc"]
+    statuses = [client.post("/links", json={**BODY, "code": c}).status_code for c in codes]
+    assert statuses == [201, 201, 429]
+
+
+def test_expiry(client):
+    assert client.post("/links", json={**BODY, "expires_at": "2020-01-01T00:00:00Z"}).status_code == 422
+    assert client.post("/links", json={**BODY, "expires_at": "2099-01-01T00:00:00"}).status_code == 422
+    client.post("/links", json={**BODY, "expires_at": "2099-01-01T00:00:00Z"})
+    asyncio.run(expire("abcd"))
+    assert client.get("/abcd", follow_redirects=False).status_code == 410
+
+
+async def expire(code: str) -&gt; None:
+    async with TestSession() as session:
+        past = datetime.now(timezone.utc) - timedelta(hours=1)
+        await session.execute(update(Link).where(Link.code == code).values(expires_at=past))
+        await session.commit()</code></pre></div>
+    <div class="note"><p><strong>Why <code>expires_at</code> is capped by the cache TTL:</strong> a cached entry is served without looking at the database, so it must disappear no later than the link does. Every dependency of <code>POST /links</code> runs in list order, so the key check comes before the rate limit and unauthenticated callers don't use up the quota.</p></div>
+    <div class="note"><p><strong>Done when:</strong> missing or wrong key gives <code>401</code>, the limit trips with <code>429</code>, and an expired link gives <code>410</code>.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-7">
+    <h3>Step 7: ship it</h3>
+    <p>Run the whole system with one command.</p>
+    <ol>
+      <li>Write a Dockerfile: a Python base image, install dependencies with uv, copy the code, run <code>fastapi run</code>.</li>
+      <li>Add the app to <code>compose.yaml</code> next to Postgres and Redis. Pass settings through environment variables, and use the service names as hosts.</li>
+      <li>Run migrations before the app starts, either as a separate compose service or a startup command.</li>
+      <li>Walk the full flow against the containers: create, redirect, details, delete.</li>
+    </ol>
+    <p>Inside the compose network the hosts are the service names, so the URLs differ from your local <code>.env</code>. Environment variables beat <code>.env</code> in pydantic-settings, so nothing in the image needs editing.</p>
+    <div class="code"><pre><code class="language-plaintext"># Dockerfile
+FROM python:3.13-slim
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+WORKDIR /srv
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+COPY . .
+ENV PATH="/srv/.venv/bin:$PATH"
+EXPOSE 8000
+CMD ["sh", "-c", "alembic upgrade head &amp;&amp; fastapi run app/main.py --port 8000"]</code></pre></div>
+    <div class="code"><pre><code class="language-plaintext"># .dockerignore
+.venv
+.env
+__pycache__
+.pytest_cache
+.git</code></pre></div>
+    <div class="code"><pre><code class="language-yaml"># compose.yaml
+services:
+  api:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://app:app@db:5432/shortener
+      REDIS_URL: redis://cache:6379/0
+      BASE_URL: http://localhost:8000
+      API_KEY: ${API_KEY:?set API_KEY in your shell or a .env file}
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: shortener
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d shortener"]
+      interval: 2s
+      retries: 15
+  cache:
+    image: redis:7
+    ports: ["6379:6379"]
+volumes:
+  pgdata:</code></pre></div>
+    <div class="code"><pre><code class="language-bash">API_KEY=pick-a-secret docker compose up --build
+curl -s -X POST localhost:8000/links -H "x-api-key: pick-a-secret" \
+     -H "content-type: application/json" -d '{"url": "https://example.com"}'
+curl -si localhost:8000/health</code></pre></div>
+    <div class="note"><p><strong>Watch out:</strong> the CLI needs every folder under <code>app/</code> to be a package (an <code>__init__.py</code> in each), or <code>from app...</code> imports fail inside the container. Running migrations in the start command is fine for one container; with several replicas, run them as a separate one-off step instead.</p></div>
+    <div class="note"><p><strong>Done when:</strong> <code>docker compose up</code> on a clean checkout gives a working API at <code>/docs</code> with nothing installed but Docker.</p></div>
   </article>
 
   <article class="stop" id="cap-hints">
