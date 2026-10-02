@@ -1070,16 +1070,102 @@ async def delete_link(session: AsyncSession, cache: redis.Redis, code: str) -&gt
   </article>
 
   <article class="stop" id="cap-milestones">
-    <h3>Milestones</h3>
+    <h3>How to work through it</h3>
+    <p>Build in seven steps, in order. Each step ends with a check you can run, and each one reuses a stop from above. Finish a step, commit, and only then move on. If you get stuck, reread the stop named in the step before looking anywhere else.</p>
     <ol>
-      <li>In-memory version: a <code>dict</code> for storage, all five endpoints working in <code>/docs</code>.</li>
-      <li>Validation: <code>LinkCreate</code> / <code>LinkOut</code> schemas, custom codes, reserved words, domain exceptions mapped to status codes.</li>
-      <li>Structure: split into routers, services, schemas and config. Add pytest tests for every endpoint.</li>
-      <li>Persistence: Postgres (or SQLite) through SQLAlchemy, with an Alembic migration. Same tests, now with a test database.</li>
-      <li>Caching: cache-aside on redirects, cache invalidation on delete.</li>
-      <li>Hardening: rate limiting on creation, expiring links (<code>expires_at</code>), an API key for write endpoints.</li>
-      <li>Ship it: a Dockerfile for the app, added to <code>compose.yaml</code>, running with <code>fastapi run</code>.</li>
+      <li>In-memory version</li>
+      <li>Validation and errors</li>
+      <li>Structure and tests</li>
+      <li>Persistence</li>
+      <li>Caching</li>
+      <li>Hardening</li>
+      <li>Ship it</li>
     </ol>
+  </article>
+
+  <article class="stop" id="cap-step-1">
+    <h3>Step 1: in-memory version</h3>
+    <p>Get all five endpoints answering before you think about structure. One file, one <code>dict[str, str]</code> mapping code to URL.</p>
+    <ol>
+      <li>Set up the project as in Project setup with uv, add <code>fastapi[standard]</code>, and start the server as in Your first app.</li>
+      <li>Write the five routes from the spec. Use path and body parameters as in Path, query and body.</li>
+      <li>For now generate codes with <code>secrets</code> (see Design hints) and return the short URL built from the request's base URL.</li>
+      <li>Open <code>/docs</code> and call every endpoint by hand, including the failure cases.</li>
+    </ol>
+    <div class="note"><p><strong>Done when:</strong> every row of the spec table returns the right status code from <code>/docs</code>, even though the data vanishes on restart.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-2">
+    <h3>Step 2: validation and errors</h3>
+    <p>Replace loose inputs and ad hoc <code>HTTPException</code> calls with schemas and domain exceptions.</p>
+    <ol>
+      <li>Write <code>LinkCreate</code> and <code>LinkOut</code> with Pydantic, as in Pydantic v2: <code>HttpUrl</code> for the target, an optional custom code with a length and pattern constraint.</li>
+      <li>Add a validator that rejects reserved codes (see Design hints).</li>
+      <li>Define exceptions such as <code>CodeTaken</code> and <code>LinkNotFound</code>, following Exceptions, and map them to <code>409</code> and <code>404</code> with exception handlers, as in Responses and errors.</li>
+      <li>Set <code>response_model</code> and <code>status_code</code> on each route so the docs match the spec.</li>
+    </ol>
+    <div class="note"><p><strong>Done when:</strong> a bad URL gives <code>422</code>, a duplicate custom code gives <code>409</code>, and routes contain no <code>raise HTTPException</code>.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-3">
+    <h3>Step 3: structure and tests</h3>
+    <p>Split the file by responsibility and lock the behavior in with tests before touching the database.</p>
+    <ol>
+      <li>Follow Project structure with APIRouter: <code>routers/</code> for HTTP, <code>services/</code> for logic, <code>schemas/</code>, and a <code>config.py</code> using pydantic-settings (see Configuration with pydantic-settings).</li>
+      <li>Keep routes thin. They parse input, call a service and return the result.</li>
+      <li>Inject the store through <code>Depends</code> (see Dependency injection with Depends) so tests can swap it.</li>
+      <li>Write tests with <code>TestClient</code> as in Testing endpoints and Testing with pytest: one happy path and one failure per endpoint, using fixtures and dependency overrides.</li>
+    </ol>
+    <div class="note"><p><strong>Done when:</strong> <code>pytest</code> passes, and you can change the internals of a service without editing a test.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-4">
+    <h3>Step 4: persistence</h3>
+    <p>Swap the dictionary for a database without changing the routes or the HTTP-level tests.</p>
+    <ol>
+      <li>Start Postgres and Redis as in Run Postgres and Redis locally.</li>
+      <li>Define a <code>Link</code> model with a unique indexed <code>code</code>, <code>url</code>, <code>clicks</code>, <code>created_at</code> and a nullable <code>expires_at</code> (see SQLAlchemy 2.0: engine, session, models).</li>
+      <li>Rewrite the service functions following Services own the transaction: the service commits, routes never touch the session. Turn a unique-constraint failure into <code>CodeTaken</code>.</li>
+      <li>Create the table with an Alembic migration (see Migrations with Alembic) instead of <code>create_all</code>.</li>
+      <li>Point the tests at a separate test database and make each test start clean.</li>
+    </ol>
+    <div class="note"><p><strong>Done when:</strong> the same tests from the previous step pass against Postgres, and links survive a restart.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-5">
+    <h3>Step 5: caching</h3>
+    <p>Make the hot path, the redirect, avoid the database.</p>
+    <ol>
+      <li>Connect Redis in the lifespan handler (see Lifespan, middleware and background tasks) and inject the client.</li>
+      <li>Apply Cache-aside to <code>GET /{code}</code>: look in Redis, fall back to the database, store the result with a TTL.</li>
+      <li>Delete the cache key in the delete service. Decide what a cache entry must never outlive, an expired link for example, and set its TTL accordingly.</li>
+      <li>Still count the click on a cache hit. Decide where that write happens, then see the click-counting hint.</li>
+    </ol>
+    <div class="note"><p><strong>Done when:</strong> a second redirect to the same code does not query Postgres (check with SQL logging or a counter in a test), and a deleted link returns <code>404</code> immediately.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-6">
+    <h3>Step 6: hardening</h3>
+    <p>Add the three protections a public service needs.</p>
+    <ol>
+      <li>Expiry: return <code>410</code> when <code>expires_at</code> has passed, using timezone-aware datetimes.</li>
+      <li>API key: put the check in a dependency and attach it to <code>POST</code> and <code>DELETE</code> only. Read the key from settings and compare with <code>secrets.compare_digest</code>.</li>
+      <li>Rate limiting: a fixed-window counter in Redis as described in Design hints, written as a dependency that returns <code>429</code>.</li>
+      <li>Add a test for each protection.</li>
+    </ol>
+    <div class="note"><p><strong>Done when:</strong> missing or wrong key gives <code>401</code>, the limit trips with <code>429</code>, and an expired link gives <code>410</code>.</p></div>
+  </article>
+
+  <article class="stop" id="cap-step-7">
+    <h3>Step 7: ship it</h3>
+    <p>Run the whole system with one command.</p>
+    <ol>
+      <li>Write a Dockerfile: a Python base image, install dependencies with uv, copy the code, run <code>fastapi run</code>.</li>
+      <li>Add the app to <code>compose.yaml</code> next to Postgres and Redis. Pass settings through environment variables, and use the service names as hosts.</li>
+      <li>Run migrations before the app starts, either as a separate compose service or a startup command.</li>
+      <li>Walk the full flow against the containers: create, redirect, details, delete.</li>
+    </ol>
+    <div class="note"><p><strong>Done when:</strong> <code>docker compose up</code> on a clean checkout gives a working API at <code>/docs</code> with nothing installed but Docker.</p></div>
   </article>
 
   <article class="stop" id="cap-hints">
