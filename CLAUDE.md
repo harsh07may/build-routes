@@ -62,6 +62,7 @@ So: **never hand-write navigation, numbering or progress UI.** Add or move secti
 - Callout: `<div class="note"><p><strong>Label:</strong> text</p></div>`. The label takes the part's colour. Use for gotchas and "why" explanations, at most one or two per stop.
 - Table: wrap in `<div class="tbl-wrap"><table>...</table></div>` so it scrolls on mobile.
 - Lists: `<ul>`/`<ol>` are fine inside stops when the content really is a list.
+- Labeled files and changed lines (used by the route 1 capstone): put `data-file="app/db.py"` on the `.code` div, plus `data-state="new"` or `data-state="changed"` to show a label bar. On a changed file add `data-hl="3,5-8"` to the `<code>` element (1-based line numbers, ranges allowed) and the script highlights those lines. Generate the ranges with `difflib` against the previous version rather than counting by hand. The same CSS and JS are in all three guides.
 
 ### Diagrams (route 2)
 
