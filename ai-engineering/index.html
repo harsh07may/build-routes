@@ -103,6 +103,12 @@ code{font-family:var(--mono);font-size:.86em}
 .code{position:relative;margin:16px 0 18px}
 pre{margin:0;background:var(--code-bg);border:1px solid var(--rule);border-left:4px solid var(--line);border-radius:4px 10px 10px 4px;padding:16px 18px;overflow-x:auto;font:400 13.5px/1.65 var(--mono);tab-size:4}
 pre code{font-size:inherit;white-space:pre}
+.code[data-file]::before{display:block;content:attr(data-file);font:600 12.5px var(--mono);color:var(--muted);background:var(--code-bg);border:1px solid var(--rule);border-bottom:0;border-left:4px solid var(--line);border-radius:4px 10px 0 0;padding:7px 18px}
+.code[data-file]>pre{border-top-left-radius:0;border-top-right-radius:0}
+.code[data-state="new"]::before{content:attr(data-file) "  \00B7  new file"}
+.code[data-state="changed"]::before{content:attr(data-file) "  \00B7  changed, new lines highlighted"}
+.code[data-hl] pre code,pre code[data-hl]{display:block;min-width:max-content}
+.hl{display:block;min-height:1.65em;margin:0 -18px;padding:0 18px;background:color-mix(in srgb,var(--line) 15%,transparent);box-shadow:inset 3px 0 0 var(--line)}
 .copy{position:absolute;top:8px;right:8px;font:600 12.5px var(--sans);background:var(--surface);color:var(--muted);border:1px solid var(--rule);border-radius:6px;padding:4px 9px;cursor:pointer;opacity:0;transition:opacity .15s}
 .code:hover .copy,.copy:focus-visible{opacity:1}
 @media (hover:none){.copy{opacity:1}}
@@ -1174,6 +1180,27 @@ new_chunks = [c for c in chunks if content_hash(c.url, c.heading, c.text) not in
 
   // code: highlight + copy
   if (window.hljs) { try { hljs.highlightAll(); } catch (e) {} }
+  // mark changed lines: <code data-hl="3,5-8"> wraps those lines in .hl, keeping hljs spans balanced
+  document.querySelectorAll("code[data-hl]").forEach((code) => {
+    const marked = new Set();
+    code.dataset.hl.split(",").forEach((r) => {
+      const [a, b] = r.split("-").map(Number);
+      for (let i = a; i <= (b || a); i++) marked.add(i);
+    });
+    const html = code.innerHTML, re = /<span[^>]*>|<\/span>|\n/g;
+    const lines = [], open = [];
+    let cur = "", last = 0, m;
+    while ((m = re.exec(html))) {
+      cur += html.slice(last, m.index); last = re.lastIndex;
+      if (m[0] === "\n") { lines.push(cur + "</span>".repeat(open.length)); cur = open.join(""); continue; }
+      if (m[0] === "</span>") open.pop(); else open.push(m[0]);
+      cur += m[0];
+    }
+    lines.push(cur + html.slice(last));
+    code.innerHTML = lines.map((l, i) => marked.has(i + 1)
+      ? '<span class="hl">' + l + "</span>"
+      : l + (i + 1 < lines.length ? "\n" : "")).join("");
+  });
   document.querySelectorAll(".code").forEach((wrap) => {
     const btn = document.createElement("button");
     btn.type = "button"; btn.className = "copy"; btn.textContent = "Copy";
