@@ -102,12 +102,6 @@ code{font-family:var(--mono);font-size:.86em}
 .code{position:relative;margin:16px 0 18px}
 pre{margin:0;background:var(--code-bg);border:1px solid var(--rule);border-left:4px solid var(--line);border-radius:4px 10px 10px 4px;padding:16px 18px;overflow-x:auto;font:400 13.5px/1.65 var(--mono);tab-size:4}
 pre code{font-size:inherit;white-space:pre}
-.code[data-file]::before{display:block;content:attr(data-file);font:600 12.5px var(--mono);color:var(--muted);background:var(--code-bg);border:1px solid var(--rule);border-bottom:0;border-left:4px solid var(--line);border-radius:4px 10px 0 0;padding:7px 18px}
-.code[data-file]>pre{border-top-left-radius:0;border-top-right-radius:0}
-.code[data-state="new"]::before{content:attr(data-file) "  \00B7  new file"}
-.code[data-state="changed"]::before{content:attr(data-file) "  \00B7  changed, new lines highlighted"}
-.code[data-hl] pre code,pre code[data-hl]{display:block;min-width:max-content}
-.hl{display:block;min-height:1.65em;margin:0 -18px;padding:0 18px;background:color-mix(in srgb,var(--line) 15%,transparent);box-shadow:inset 3px 0 0 var(--line)}
 .copy{position:absolute;top:8px;right:8px;font:600 12.5px var(--sans);background:var(--surface);color:var(--muted);border:1px solid var(--rule);border-radius:6px;padding:4px 9px;cursor:pointer;opacity:0;transition:opacity .15s}
 .code:hover .copy,.copy:focus-visible{opacity:1}
 @media (hover:none){.copy{opacity:1}}
@@ -1077,7 +1071,7 @@ async def delete_link(session: AsyncSession, cache: redis.Redis, code: str) -&gt
 
   <article class="stop" id="cap-milestones">
     <h3>How to work through it</h3>
-    <p>Build in seven steps, in order. Each step ends with a check you can run, and each one reuses a stop from above. Try it yourself first, then compare with the code shown; changed lines are highlighted so you can see what each step adds. The code is one possible solution, not the only one. Finish a step, commit, and only then move on.</p>
+    <p>Build in seven steps, in order. Each step ends with a check you can run, and each one reuses a stop from above. Try it yourself first, then compare with the code shown. The code is one possible solution, not the only one. Finish a step, commit, and only then move on.</p>
     <ol>
       <li>In-memory version</li>
       <li>Validation and errors</li>
@@ -1099,7 +1093,8 @@ async def delete_link(session: AsyncSession, cache: redis.Redis, code: str) -&gt
       <li>Open <code>/docs</code> and call every endpoint by hand, including the failure cases.</li>
     </ol>
     <p>The whole app at this point:</p>
-    <div class="code" data-file="main.py" data-state="new"><pre><code class="language-python">import secrets
+    <div class="code"><pre><code class="language-python"># main.py
+import secrets
 import string
 
 from fastapi import FastAPI, HTTPException, Request
@@ -1170,8 +1165,9 @@ async def follow(code: str) -&gt; RedirectResponse:
       <li>Define exceptions such as <code>CodeTaken</code> and <code>LinkNotFound</code>, following Exceptions, and map them to <code>409</code> and <code>404</code> with exception handlers, as in Responses and errors.</li>
       <li>Set <code>response_model</code> and <code>status_code</code> on each route so the docs match the spec.</li>
     </ol>
-    <p>Still one file. The new parts are the schemas, the two exceptions with their handlers, and <code>get_target</code>, which every route shares. Highlighted lines are new or changed since the previous step.</p>
-    <div class="code" data-file="main.py" data-state="changed"><pre><code class="language-python" data-hl="3,5-7,14-16,19-34,37-45,48-55,60-66,73,76,79-80,84-87,91-92,98-99,101">import secrets
+    <p>Still one file. The new parts are the schemas, the two exceptions with their handlers, and <code>get_target</code>, which every route shares:</p>
+    <div class="code"><pre><code class="language-python"># main.py
+import secrets
 import string
 from typing import Annotated
 
@@ -1284,6 +1280,7 @@ async def follow(code: Code) -&gt; RedirectResponse:
       <li>Inject the store through <code>Depends</code> (see Dependency injection with Depends) so tests can swap it.</li>
       <li>Write tests with <code>TestClient</code> as in Testing endpoints and Testing with pytest: one happy path and one failure per endpoint, using fixtures and dependency overrides.</li>
     </ol>
+    <p>The layout:</p>
     <div class="code"><pre><code class="language-plaintext">app/
 ├── __init__.py          # empty; one in every folder under app/
 ├── main.py
@@ -1299,8 +1296,9 @@ async def follow(code: Code) -&gt; RedirectResponse:
 tests/
 ├── conftest.py
 └── test_links.py</code></pre></div>
-    <p>The code moves out of <code>main.py</code> mostly unchanged, so every file below is labeled new. The one new idea is that services take the store as an argument and are <code>async</code> already, so the persistence step swaps the argument and keeps every signature.</p>
-    <div class="code" data-file="app/core/config.py" data-state="new"><pre><code class="language-python">from pydantic_settings import BaseSettings, SettingsConfigDict
+    <p>The code moves out of <code>main.py</code> mostly unchanged. The new idea is that services take the store as an argument and are <code>async</code> already, so the persistence step swaps the argument and keeps every signature.</p>
+    <div class="code"><pre><code class="language-python"># app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -1310,9 +1308,11 @@ class Settings(BaseSettings):
 
 
 settings = Settings()</code></pre></div>
-    <div class="code" data-file="app/errors.py" data-state="new"><pre><code class="language-python">class LinkNotFound(Exception): ...
+    <div class="code"><pre><code class="language-python"># app/errors.py
+class LinkNotFound(Exception): ...
 class CodeTaken(Exception): ...</code></pre></div>
-    <div class="code" data-file="app/codes.py" data-state="new"><pre><code class="language-python">import secrets
+    <div class="code"><pre><code class="language-python"># app/codes.py
+import secrets
 import string
 
 ALPHABET = string.ascii_letters + string.digits
@@ -1320,7 +1320,8 @@ ALPHABET = string.ascii_letters + string.digits
 
 def make_code(length: int = 6) -&gt; str:
     return "".join(secrets.choice(ALPHABET) for _ in range(length))</code></pre></div>
-    <div class="code" data-file="app/schemas.py" data-state="new"><pre><code class="language-python">from pydantic import BaseModel, Field, HttpUrl, field_validator
+    <div class="code"><pre><code class="language-python"># app/schemas.py
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 RESERVED = {"docs", "redoc", "openapi.json", "links", "health"}
 
@@ -1343,7 +1344,8 @@ class LinkOut(BaseModel):
     short_url: str
     target_url: str
     clicks: int = 0</code></pre></div>
-    <div class="code" data-file="app/store.py" data-state="new"><pre><code class="language-python">from dataclasses import dataclass
+    <div class="code"><pre><code class="language-python"># app/store.py
+from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends
@@ -1365,7 +1367,8 @@ def get_store() -&gt; Store:
 
 
 StoreDep = Annotated[Store, Depends(get_store)]</code></pre></div>
-    <div class="code" data-file="app/services/links.py" data-state="new"><pre><code class="language-python"># No FastAPI imports here.
+    <div class="code"><pre><code class="language-python"># app/services/links.py
+# No FastAPI imports here.
 from app.codes import make_code
 from app.errors import CodeTaken, LinkNotFound
 from app.store import LinkRecord, Store
@@ -1396,7 +1399,8 @@ async def record_click(store: Store, code: str) -&gt; None:
 async def delete_link(store: Store, code: str) -&gt; None:
     await get_link(store, code)
     del store[code]</code></pre></div>
-    <div class="code" data-file="app/routers/links.py" data-state="new"><pre><code class="language-python">from typing import Annotated
+    <div class="code"><pre><code class="language-python"># app/routers/links.py
+from typing import Annotated
 
 from fastapi import APIRouter, Path
 
@@ -1428,7 +1432,8 @@ async def read(code: Code, store: StoreDep) -&gt; LinkOut:
 @router.delete("/{code}", status_code=204)
 async def remove(code: Code, store: StoreDep) -&gt; None:
     await svc.delete_link(store, code)</code></pre></div>
-    <div class="code" data-file="app/routers/redirect.py" data-state="new"><pre><code class="language-python">from fastapi import APIRouter
+    <div class="code"><pre><code class="language-python"># app/routers/redirect.py
+from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
 from app.routers.links import Code
@@ -1443,7 +1448,8 @@ async def follow(code: Code, store: StoreDep) -&gt; RedirectResponse:
     target = await svc.resolve(store, code)
     await svc.record_click(store, code)
     return RedirectResponse(target, status_code=302)</code></pre></div>
-    <div class="code" data-file="app/main.py" data-state="new"><pre><code class="language-python">from fastapi import FastAPI, Request
+    <div class="code"><pre><code class="language-python"># app/main.py
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.errors import CodeTaken, LinkNotFound
@@ -1469,7 +1475,8 @@ async def health() -&gt; dict[str, str]:
 
 app.include_router(links.router)
 app.include_router(redirect.router)      # catch-all /{code} goes last</code></pre></div>
-    <div class="code" data-file="tests/conftest.py" data-state="new"><pre><code class="language-python">import pytest
+    <div class="code"><pre><code class="language-python"># tests/conftest.py
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -1483,7 +1490,8 @@ def client():
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()</code></pre></div>
-    <div class="code" data-file="tests/test_links.py" data-state="new"><pre><code class="language-python">BODY = {"url": "https://example.com", "code": "abcd"}
+    <div class="code"><pre><code class="language-python"># tests/test_links.py
+BODY = {"url": "https://example.com", "code": "abcd"}
 
 
 def test_health(client):
@@ -1544,9 +1552,11 @@ uv run alembic init -t async migrations
 # edit migrations/env.py as in the Alembic stop, then:
 uv run alembic revision --autogenerate -m "create links"
 uv run alembic upgrade head</code></pre></div>
-    <div class="code" data-file=".env"><pre><code class="language-ini">DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/shortener</code></pre></div>
-    <p>Delete <code>app/store.py</code>. <code>schemas.py</code>, <code>errors.py</code>, <code>codes.py</code> and <code>tests/test_links.py</code> do not change, which is the point of the previous step. Every file is shown in full and labeled. In changed files, the highlighted lines are what is new since the previous step; lines you delete are simply gone.</p>
-    <div class="code" data-file="app/core/config.py" data-state="changed"><pre><code class="language-python" data-hl="7-8">from pydantic_settings import BaseSettings, SettingsConfigDict
+    <div class="code"><pre><code class="language-ini"># .env
+DATABASE_URL=postgresql+asyncpg://app:app@localhost:5432/shortener</code></pre></div>
+    <p>Delete <code>app/store.py</code>. <code>schemas.py</code>, <code>errors.py</code>, <code>codes.py</code> and <code>tests/test_links.py</code> do not change, which is the point of the previous step. These files change:</p>
+    <div class="code"><pre><code class="language-python"># app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -1558,7 +1568,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()</code></pre></div>
-    <div class="code" data-file="app/db.py" data-state="new"><pre><code class="language-python">from collections.abc import AsyncIterator
+    <div class="code"><pre><code class="language-python"># app/db.py
+from collections.abc import AsyncIterator
 from typing import Annotated
 
 from fastapi import Depends
@@ -1581,7 +1592,8 @@ async def get_session() -&gt; AsyncIterator[AsyncSession]:
 
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]</code></pre></div>
-    <div class="code" data-file="app/models.py" data-state="new"><pre><code class="language-python">from datetime import datetime
+    <div class="code"><pre><code class="language-python"># app/models.py
+from datetime import datetime
 
 from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -1598,7 +1610,8 @@ class Link(Base):
     clicks: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))</code></pre></div>
-    <div class="code" data-file="app/services/links.py" data-state="changed"><pre><code class="language-python" data-hl="1-5,8,11-20,23-25,27,30-31,34-37,40-43"># No FastAPI imports here. Services own the transaction.
+    <div class="code"><pre><code class="language-python"># app/services/links.py
+# No FastAPI imports here. Services own the transaction.
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1641,7 +1654,8 @@ async def delete_link(session: AsyncSession, code: str) -&gt; None:
     link = await get_link(session, code)
     await session.delete(link)
     await session.commit()</code></pre></div>
-    <div class="code" data-file="app/routers/links.py" data-state="changed"><pre><code class="language-python" data-hl="6-7,16,22-23,27-28,32-33">from typing import Annotated
+    <div class="code"><pre><code class="language-python"># app/routers/links.py
+from typing import Annotated
 
 from fastapi import APIRouter, Path
 
@@ -1674,7 +1688,8 @@ async def read(code: Code, session: SessionDep) -&gt; LinkOut:
 @router.delete("/{code}", status_code=204)
 async def remove(code: Code, session: SessionDep) -&gt; None:
     await svc.delete_link(session, code)</code></pre></div>
-    <div class="code" data-file="app/routers/redirect.py" data-state="changed"><pre><code class="language-python" data-hl="4,12-14">from fastapi import APIRouter
+    <div class="code"><pre><code class="language-python"># app/routers/redirect.py
+from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
 from app.db import SessionDep
@@ -1689,7 +1704,8 @@ async def follow(code: Code, session: SessionDep) -&gt; RedirectResponse:
     target = await svc.resolve(session, code)
     await svc.record_click(session, code)
     return RedirectResponse(target, status_code=302)</code></pre></div>
-    <div class="code" data-file="app/main.py" data-state="changed"><pre><code class="language-python" data-hl="1-2,6,10-17">from contextlib import asynccontextmanager
+    <div class="code"><pre><code class="language-python"># app/main.py
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -1725,7 +1741,8 @@ async def health() -&gt; dict[str, str]:
 
 app.include_router(links.router)
 app.include_router(redirect.router)      # catch-all /{code} goes last</code></pre></div>
-    <div class="code" data-file="tests/conftest.py" data-state="changed"><pre><code class="language-python" data-hl="1-2,5-6,8-9,11-25,30-31">import asyncio
+    <div class="code"><pre><code class="language-python"># tests/conftest.py
+import asyncio
 
 import pytest
 from fastapi.testclient import TestClient
@@ -1772,8 +1789,9 @@ def client():
       <li>Delete the cache key in the delete service. Decide what a cache entry must never outlive, an expired link for example, and set its TTL accordingly.</li>
       <li>Still count the click on a cache hit. Decide where that write happens, then see the click-counting hint.</li>
     </ol>
-    <p>Redis was already listed in <code>compose.yaml</code>. <code>schemas.py</code>, <code>errors.py</code>, <code>codes.py</code> and <code>db.py</code> are unchanged. Every file is shown in full and labeled. In changed files, the highlighted lines are what is new since the previous step; lines you delete are simply gone.</p>
-    <div class="code" data-file="app/cache.py" data-state="new"><pre><code class="language-python">from typing import Annotated
+    <p>Redis was already listed in <code>compose.yaml</code>. <code>schemas.py</code>, <code>errors.py</code>, <code>codes.py</code> and <code>db.py</code> are unchanged; <code>cache.py</code> is new:</p>
+    <div class="code"><pre><code class="language-python"># app/cache.py
+from typing import Annotated
 
 import redis.asyncio as redis
 from fastapi import Depends, Request
@@ -1784,7 +1802,8 @@ def get_redis(request: Request) -&gt; redis.Redis:
 
 
 RedisDep = Annotated[redis.Redis, Depends(get_redis)]</code></pre></div>
-    <div class="code" data-file="app/core/config.py" data-state="changed"><pre><code class="language-python" data-hl="9-10">from pydantic_settings import BaseSettings, SettingsConfigDict
+    <div class="code"><pre><code class="language-python"># app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -1798,7 +1817,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()</code></pre></div>
-    <div class="code" data-file="app/main.py" data-state="changed"><pre><code class="language-python" data-hl="3,7,15,17">from contextlib import asynccontextmanager
+    <div class="code"><pre><code class="language-python"># app/main.py
+from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
 from fastapi import FastAPI, Request
@@ -1838,7 +1858,8 @@ async def health() -&gt; dict[str, str]:
 
 app.include_router(links.router)
 app.include_router(redirect.router)      # catch-all /{code} goes last</code></pre></div>
-    <div class="code" data-file="app/services/links.py" data-state="changed"><pre><code class="language-python" data-hl="2,31-36,45,49"># No FastAPI imports here. Services own the transaction.
+    <div class="code"><pre><code class="language-python"># app/services/links.py
+# No FastAPI imports here. Services own the transaction.
 import redis.asyncio as redis
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -1887,7 +1908,8 @@ async def delete_link(session: AsyncSession, cache: redis.Redis, code: str) -&gt
     await session.delete(link)
     await session.commit()
     await cache.delete(f"link:{code}")                           # invalidate after the commit</code></pre></div>
-    <div class="code" data-file="app/routers/links.py" data-state="changed"><pre><code class="language-python" data-hl="6,33-34">from typing import Annotated
+    <div class="code"><pre><code class="language-python"># app/routers/links.py
+from typing import Annotated
 
 from fastapi import APIRouter, Path
 
@@ -1921,7 +1943,8 @@ async def read(code: Code, session: SessionDep) -&gt; LinkOut:
 @router.delete("/{code}", status_code=204)
 async def remove(code: Code, session: SessionDep, cache: RedisDep) -&gt; None:
     await svc.delete_link(session, cache, code)</code></pre></div>
-    <div class="code" data-file="app/routers/redirect.py" data-state="changed"><pre><code class="language-python" data-hl="4,13-14">from fastapi import APIRouter
+    <div class="code"><pre><code class="language-python"># app/routers/redirect.py
+from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
 from app.cache import RedisDep
@@ -1937,7 +1960,8 @@ async def follow(code: Code, session: SessionDep, cache: RedisDep) -&gt; Redirec
     target = await svc.resolve(session, cache, code)
     await svc.record_click(session, code)
     return RedirectResponse(target, status_code=302)</code></pre></div>
-    <div class="code" data-file="tests/conftest.py" data-state="changed"><pre><code class="language-python" data-hl="4-5,10,31-38,40-48,51">import asyncio
+    <div class="code"><pre><code class="language-python"># tests/conftest.py
+import asyncio
 
 import pytest
 import redis as redis_sync
@@ -1991,50 +2015,8 @@ def client(cache):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()</code></pre></div>
-    <div class="code" data-file="tests/test_links.py" data-state="changed"><pre><code class="language-python" data-hl="42-51">BODY = {"url": "https://example.com", "code": "abcd"}
-
-
-def test_health(client):
-    assert client.get("/health").json() == {"status": "ok"}
-
-
-def test_create_and_read(client):
-    r = client.post("/links", json=BODY)
-    assert r.status_code == 201
-    assert r.json()["short_url"].endswith("/abcd")
-    assert client.get("/links/abcd").json()["clicks"] == 0
-
-
-def test_duplicate_code_is_409(client):
-    client.post("/links", json=BODY)
-    assert client.post("/links", json=BODY).status_code == 409
-
-
-def test_bad_input_is_422(client):
-    assert client.post("/links", json={"url": "not a url"}).status_code == 422
-    assert client.post("/links", json={**BODY, "code": "docs"}).status_code == 422
-
-
-def test_redirect_counts_clicks(client):
-    client.post("/links", json=BODY)
-    r = client.get("/abcd", follow_redirects=False)
-    assert r.status_code == 302
-    assert r.headers["location"] == "https://example.com/"
-    assert client.get("/links/abcd").json()["clicks"] == 1
-
-
-def test_unknown_code_is_404(client):
-    assert client.get("/nope1").status_code == 404
-    assert client.get("/links/nope1").status_code == 404
-
-
-def test_delete(client):
-    client.post("/links", json=BODY)
-    assert client.delete("/links/abcd").status_code == 204
-    assert client.delete("/links/abcd").status_code == 404
-
-
-def test_redirect_fills_cache_and_delete_clears_it(client, cache):
+    <p>Add this test to <code>tests/test_links.py</code>:</p>
+    <div class="code"><pre><code class="language-python">def test_redirect_fills_cache_and_delete_clears_it(client, cache):
     client.post("/links", json=BODY)
     assert cache.get("link:abcd") is None
     client.get("/abcd", follow_redirects=False)
@@ -2055,8 +2037,9 @@ def test_redirect_fills_cache_and_delete_clears_it(client, cache):
       <li>Rate limiting: a fixed-window counter in Redis as described in Design hints, written as a dependency that returns <code>429</code>.</li>
       <li>Add a test for each protection.</li>
     </ol>
-    <p>New files are <code>security.py</code> and <code>ratelimit.py</code>. The rest add an exception, a field, two dependencies and tests. Every file is shown in full and labeled. In changed files, the highlighted lines are what is new since the previous step; lines you delete are simply gone.</p>
-    <div class="code" data-file="app/security.py" data-state="new"><pre><code class="language-python">import secrets
+    <p>New files are <code>security.py</code> and <code>ratelimit.py</code>. The rest add an exception, a field and two dependencies:</p>
+    <div class="code"><pre><code class="language-python"># app/security.py
+import secrets
 from typing import Annotated
 
 from fastapi import Header, HTTPException
@@ -2068,7 +2051,8 @@ async def require_api_key(x_api_key: Annotated[str | None, Header()] = None) -&g
     expected = settings.api_key.encode()
     if x_api_key is None or not secrets.compare_digest(x_api_key.encode(), expected):
         raise HTTPException(status_code=401, detail="invalid API key")</code></pre></div>
-    <div class="code" data-file="app/ratelimit.py" data-state="new"><pre><code class="language-python">import time
+    <div class="code"><pre><code class="language-python"># app/ratelimit.py
+import time
 
 from fastapi import HTTPException, Request
 
@@ -2085,7 +2069,8 @@ async def rate_limit(request: Request, cache: RedisDep) -&gt; None:
         count, _ = await pipe.execute()
     if count &gt; settings.rate_limit_per_minute:
         raise HTTPException(status_code=429, detail="too many requests")</code></pre></div>
-    <div class="code" data-file="app/core/config.py" data-state="changed"><pre><code class="language-python" data-hl="11-12">from pydantic_settings import BaseSettings, SettingsConfigDict
+    <div class="code"><pre><code class="language-python"># app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -2101,10 +2086,12 @@ class Settings(BaseSettings):
 
 
 settings = Settings()</code></pre></div>
-    <div class="code" data-file="app/errors.py" data-state="changed"><pre><code class="language-python" data-hl="3">class LinkNotFound(Exception): ...
+    <div class="code"><pre><code class="language-python"># app/errors.py
+class LinkNotFound(Exception): ...
 class CodeTaken(Exception): ...
 class LinkExpired(Exception): ...</code></pre></div>
-    <div class="code" data-file="app/schemas.py" data-state="changed"><pre><code class="language-python" data-hl="1-3,12,21-27,34">from datetime import datetime, timezone
+    <div class="code"><pre><code class="language-python"># app/schemas.py
+from datetime import datetime, timezone
 
 from pydantic import AwareDatetime, BaseModel, Field, HttpUrl, field_validator
 
@@ -2138,7 +2125,8 @@ class LinkOut(BaseModel):
     target_url: str
     clicks: int = 0
     expires_at: datetime | None = None</code></pre></div>
-    <div class="code" data-file="app/services/links.py" data-state="changed"><pre><code class="language-python" data-hl="2-3,10,14-16,38-44"># No FastAPI imports here. Services own the transaction.
+    <div class="code"><pre><code class="language-python"># app/services/links.py
+# No FastAPI imports here. Services own the transaction.
 from datetime import datetime, timezone
 
 import redis.asyncio as redis
@@ -2196,7 +2184,8 @@ async def delete_link(session: AsyncSession, cache: redis.Redis, code: str) -&gt
     await session.delete(link)
     await session.commit()
     await cache.delete(f"link:{code}")                           # invalidate after the commit</code></pre></div>
-    <div class="code" data-file="app/routers/links.py" data-state="changed"><pre><code class="language-python" data-hl="3,9,11,21,24-25,27-28,36">from typing import Annotated
+    <div class="code"><pre><code class="language-python"># app/routers/links.py
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path
 
@@ -2234,172 +2223,24 @@ async def read(code: Code, session: SessionDep) -&gt; LinkOut:
 @router.delete("/{code}", status_code=204, dependencies=[Depends(require_api_key)])
 async def remove(code: Code, session: SessionDep, cache: RedisDep) -&gt; None:
     await svc.delete_link(session, cache, code)</code></pre></div>
-    <div class="code" data-file="app/main.py" data-state="changed"><pre><code class="language-python" data-hl="9,34-38">from contextlib import asynccontextmanager
-
-import redis.asyncio as redis
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-
-from app.core.config import settings
-from app.db import engine
-from app.errors import CodeTaken, LinkExpired, LinkNotFound
-from app.routers import links, redirect
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
-    yield
-    await app.state.redis.aclose()
-    await engine.dispose()
-
-
-app = FastAPI(title="Shortener", lifespan=lifespan)
-
-
-@app.exception_handler(LinkNotFound)
-async def on_not_found(request: Request, exc: LinkNotFound) -&gt; JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": f"no link '{exc}'"})
-
-
-@app.exception_handler(CodeTaken)
-async def on_taken(request: Request, exc: CodeTaken) -&gt; JSONResponse:
-    return JSONResponse(status_code=409, content={"detail": f"code '{exc}' is taken"})
-
-
+    <p>In <code>app/main.py</code>, import <code>LinkExpired</code> and add one more handler:</p>
+    <div class="code"><pre><code class="language-python"># app/main.py (addition)
 @app.exception_handler(LinkExpired)
 async def on_expired(request: Request, exc: LinkExpired) -&gt; JSONResponse:
-    return JSONResponse(status_code=410, content={"detail": f"link '{exc}' has expired"})
-
-
-@app.get("/health")
-async def health() -&gt; dict[str, str]:
-    return {"status": "ok"}
-
-
-app.include_router(links.router)
-app.include_router(redirect.router)      # catch-all /{code} goes last</code></pre></div>
-    <div class="code" data-file="tests/conftest.py" data-state="changed"><pre><code class="language-python" data-hl="2,8,16,55,58-68">import asyncio
+    return JSONResponse(status_code=410, content={"detail": f"link '{exc}' has expired"})</code></pre></div>
+    <p>In <code>tests/conftest.py</code>, send the key by default: <code>TestClient(app, headers={"x-api-key": settings.api_key})</code>. Then extend <code>tests/test_links.py</code>:</p>
+    <div class="code"><pre><code class="language-python"># tests/test_links.py (new imports at the top)
+import asyncio
 from datetime import datetime, timedelta, timezone
 
-import pytest
-import redis as redis_sync
-import redis.asyncio as redis
-from fastapi.testclient import TestClient
 from sqlalchemy import update
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
 
-from app.cache import get_redis
 from app.core.config import settings
-from app.db import Base, get_session
-from app.main import app
 from app.models import Link
-
-# NullPool: no connection is reused across event loops (pytest's and TestClient's).
-test_engine = create_async_engine(settings.test_database_url, poolclass=NullPool)
-TestSession = async_sessionmaker(test_engine, expire_on_commit=False)
+from tests.conftest import TestSession
 
 
-async def reset_tables() -&gt; None:
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-
-
-async def override_session():
-    async with TestSession() as session:
-        yield session
-
-
-async def override_redis():
-    r = redis.from_url(settings.test_redis_url, decode_responses=True)
-    try:
-        yield r
-    finally:
-        await r.aclose()
-
-
-@pytest.fixture
-def cache():                                  # sync client for assertions inside tests
-    r = redis_sync.Redis.from_url(settings.test_redis_url, decode_responses=True)
-    r.flushdb()
-    yield r
-    r.close()
-
-
-@pytest.fixture
-def client(cache):
-    asyncio.run(reset_tables())               # empty tables for every test
-    app.dependency_overrides[get_session] = override_session
-    app.dependency_overrides[get_redis] = override_redis
-    with TestClient(app, headers={"x-api-key": settings.api_key}) as c:
-        yield c
-    app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def expire():
-    """expire("abcd") moves that link's expires_at into the past."""
-    async def run(code: str) -&gt; None:
-        past = datetime.now(timezone.utc) - timedelta(hours=1)
-        async with TestSession() as session:
-            await session.execute(update(Link).where(Link.code == code).values(expires_at=past))
-            await session.commit()
-    return lambda code: asyncio.run(run(code))</code></pre></div>
-    <div class="code" data-file="tests/test_links.py" data-state="changed"><pre><code class="language-python" data-hl="1-2,54-74">from app.core.config import settings
-
-BODY = {"url": "https://example.com", "code": "abcd"}
-
-
-def test_health(client):
-    assert client.get("/health").json() == {"status": "ok"}
-
-
-def test_create_and_read(client):
-    r = client.post("/links", json=BODY)
-    assert r.status_code == 201
-    assert r.json()["short_url"].endswith("/abcd")
-    assert client.get("/links/abcd").json()["clicks"] == 0
-
-
-def test_duplicate_code_is_409(client):
-    client.post("/links", json=BODY)
-    assert client.post("/links", json=BODY).status_code == 409
-
-
-def test_bad_input_is_422(client):
-    assert client.post("/links", json={"url": "not a url"}).status_code == 422
-    assert client.post("/links", json={**BODY, "code": "docs"}).status_code == 422
-
-
-def test_redirect_counts_clicks(client):
-    client.post("/links", json=BODY)
-    r = client.get("/abcd", follow_redirects=False)
-    assert r.status_code == 302
-    assert r.headers["location"] == "https://example.com/"
-    assert client.get("/links/abcd").json()["clicks"] == 1
-
-
-def test_unknown_code_is_404(client):
-    assert client.get("/nope1").status_code == 404
-    assert client.get("/links/nope1").status_code == 404
-
-
-def test_delete(client):
-    client.post("/links", json=BODY)
-    assert client.delete("/links/abcd").status_code == 204
-    assert client.delete("/links/abcd").status_code == 404
-
-
-def test_redirect_fills_cache_and_delete_clears_it(client, cache):
-    client.post("/links", json=BODY)
-    assert cache.get("link:abcd") is None
-    client.get("/abcd", follow_redirects=False)
-    assert cache.get("link:abcd") == "https://example.com/"
-    client.delete("/links/abcd")
-    assert cache.get("link:abcd") is None
-    assert client.get("/abcd").status_code == 404
+# ...existing tests...
 
 
 def test_write_endpoints_need_the_api_key(client):
@@ -2415,12 +2256,19 @@ def test_rate_limit(client, monkeypatch):
     assert statuses == [201, 201, 429]
 
 
-def test_expiry(client, expire):
+def test_expiry(client):
     assert client.post("/links", json={**BODY, "expires_at": "2020-01-01T00:00:00Z"}).status_code == 422
     assert client.post("/links", json={**BODY, "expires_at": "2099-01-01T00:00:00"}).status_code == 422
     client.post("/links", json={**BODY, "expires_at": "2099-01-01T00:00:00Z"})
-    expire("abcd")
-    assert client.get("/abcd", follow_redirects=False).status_code == 410</code></pre></div>
+    asyncio.run(expire("abcd"))
+    assert client.get("/abcd", follow_redirects=False).status_code == 410
+
+
+async def expire(code: str) -&gt; None:
+    async with TestSession() as session:
+        past = datetime.now(timezone.utc) - timedelta(hours=1)
+        await session.execute(update(Link).where(Link.code == code).values(expires_at=past))
+        await session.commit()</code></pre></div>
     <div class="note"><p><strong>Why <code>expires_at</code> is capped by the cache TTL:</strong> a cached entry is served without looking at the database, so it must disappear no later than the link does. Every dependency of <code>POST /links</code> runs in list order, so the key check comes before the rate limit and unauthenticated callers don't use up the quota.</p></div>
     <div class="note"><p><strong>Done when:</strong> missing or wrong key gives <code>401</code>, the limit trips with <code>429</code>, and an expired link gives <code>410</code>.</p></div>
   </article>
@@ -2434,8 +2282,9 @@ def test_expiry(client, expire):
       <li>Run migrations before the app starts, either as a separate compose service or a startup command.</li>
       <li>Walk the full flow against the containers: create, redirect, details, delete.</li>
     </ol>
-    <p>Inside the compose network the hosts are the service names, so the URLs differ from your local <code>.env</code>. Environment variables beat <code>.env</code> in pydantic-settings, so nothing in the image needs editing. <code>compose.yaml</code> is the file from the persistence part, with the highlighted lines added.</p>
-    <div class="code" data-file="Dockerfile" data-state="new"><pre><code class="language-plaintext">FROM python:3.13-slim
+    <p>Inside the compose network the hosts are the service names, so the URLs differ from your local <code>.env</code>. Environment variables beat <code>.env</code> in pydantic-settings, so nothing in the image needs editing.</p>
+    <div class="code"><pre><code class="language-plaintext"># Dockerfile
+FROM python:3.13-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /srv
 COPY pyproject.toml uv.lock ./
@@ -2444,12 +2293,14 @@ COPY . .
 ENV PATH="/srv/.venv/bin:$PATH"
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head &amp;&amp; fastapi run app/main.py --port 8000"]</code></pre></div>
-    <div class="code" data-file=".dockerignore" data-state="new"><pre><code class="language-plaintext">.venv
+    <div class="code"><pre><code class="language-plaintext"># .dockerignore
+.venv
 .env
 __pycache__
 .pytest_cache
 .git</code></pre></div>
-    <div class="code" data-file="compose.yaml" data-state="changed"><pre><code class="language-yaml" data-hl="2-14,23-26">services:
+    <div class="code"><pre><code class="language-yaml"># compose.yaml
+services:
   api:
     build: .
     ports: ["8000:8000"]
@@ -2648,27 +2499,6 @@ curl -si localhost:8000/health</code></pre></div>
 
   // code: highlight + copy
   if (window.hljs) { try { hljs.highlightAll(); } catch (e) {} }
-  // mark changed lines: <code data-hl="3,5-8"> wraps those lines in .hl, keeping hljs spans balanced
-  document.querySelectorAll("code[data-hl]").forEach((code) => {
-    const marked = new Set();
-    code.dataset.hl.split(",").forEach((r) => {
-      const [a, b] = r.split("-").map(Number);
-      for (let i = a; i <= (b || a); i++) marked.add(i);
-    });
-    const html = code.innerHTML, re = /<span[^>]*>|<\/span>|\n/g;
-    const lines = [], open = [];
-    let cur = "", last = 0, m;
-    while ((m = re.exec(html))) {
-      cur += html.slice(last, m.index); last = re.lastIndex;
-      if (m[0] === "\n") { lines.push(cur + "</span>".repeat(open.length)); cur = open.join(""); continue; }
-      if (m[0] === "</span>") open.pop(); else open.push(m[0]);
-      cur += m[0];
-    }
-    lines.push(cur + html.slice(last));
-    code.innerHTML = lines.map((l, i) => marked.has(i + 1)
-      ? '<span class="hl">' + l + "</span>"
-      : l + (i + 1 < lines.length ? "\n" : "")).join("");
-  });
   document.querySelectorAll(".code").forEach((wrap) => {
     const btn = document.createElement("button");
     btn.type = "button"; btn.className = "copy"; btn.textContent = "Copy";
